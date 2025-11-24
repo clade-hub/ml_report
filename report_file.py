@@ -161,3 +161,7 @@ generate_button.pack(pady=20)
 
 # Start the main event loop
 root.mainloop()
+
+print("Report generator closed.")
+print("Goodbye!")
+
