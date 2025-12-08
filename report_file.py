@@ -22,24 +22,33 @@ def create_report(patient_title, patient_name, patient_dob, image_path, image_wi
     doc.text.addElement(patient_info2)
 
     # --- Aspect Ratio Calculation ---
-    # Define a max width for the image in the document (e.g., 16cm)
     max_width_cm = 16.0
-    
-    # Calculate aspect ratio to avoid distortion
     if image_width_px > 0:
         aspect_ratio = image_height_px / image_width_px
     else:
-        aspect_ratio = 1 # Avoid division by zero
-
-    # Calculate the new height to maintain the aspect ratio
+        aspect_ratio = 1
     frame_width_cm = max_width_cm
     frame_height_cm = max_width_cm * aspect_ratio
 
-    # Add image with correct aspect ratio
-    frame = Frame(width=f"{frame_width_cm}cm", height=f"{frame_height_cm}cm", x="2.5cm", y="4.5cm")
-    href = doc.addPicture(image_path)
-    frame.addElement(Image(href=href))
-    doc.text.addElement(frame)
+    # --- More Robust Image Insertion ---
+    # Create a paragraph to hold the image frame
+    p = P()
+    doc.text.addElement(p)
+
+    # Create the frame for the image
+    frame = Frame(width=f"{frame_width_cm}cm", height=f"{frame_height_cm}cm")
+    
+    try:
+        href = doc.addPicture(image_path)
+        if href:
+            frame.addElement(Image(href=href))
+            p.addElement(frame)
+        else:
+            # Add a placeholder text if image adding fails
+            p.addText("Image could not be added.")
+    except Exception as e:
+        # Also add a placeholder on exception
+        p.addText(f"Error adding image: {e}")
 
     doc.save(odt_path)
 
@@ -121,7 +130,8 @@ def generate_report():
         rect = fitz.Rect(coords)
         pix = page.get_pixmap(clip=rect)
         
-        image_path = "temp_pdf_snippet.png"
+        # Use an absolute path for the temporary image to ensure it can be found
+        image_path = os.path.abspath("temp_pdf_snippet.png")
         pix.save(image_path)
 
         # Get snippet dimensions for aspect ratio calculation
@@ -140,6 +150,8 @@ def generate_report():
             return
 
         create_report(patient_title, patient_name, patient_dob, image_path, snippet_width, snippet_height, odt_path)
+        
+        # Re-enable deleting the temp image file
         os.remove(image_path)
         
         messagebox.showinfo("Success", f"Successfully created {odt_path}")
@@ -163,4 +175,3 @@ generate_button.pack(pady=20)
 root.mainloop()
 
 print("Report generator closed. Goodbye, Carlo Lade!")
-
