@@ -174,4 +174,4 @@ generate_button.pack(pady=20)
 # Start the main event loop
 root.mainloop()
 
-print("Report generator closed. Goodbye, Carlo Lade!")
+print("Report generator closed. Goodbye, Carlo Lade, Hau rein, test!")
