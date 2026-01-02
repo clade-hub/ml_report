@@ -30,10 +30,21 @@ def create_report(patient_full_title, patient_name, patient_dob, report_creator,
     center_p_style.addElement(ParagraphProperties(textalign="center"))
     doc.styles.addElement(center_p_style)
 
-    # Define style for background text (12pt font)
+    # Define style for headings with page break (bold, 14pt)
+    heading_with_break_style = Style(name="HeadingWithBreakStyle", family="paragraph")
+    heading_with_break_style.addElement(ParagraphProperties(breakbefore="page"))
+    heading_with_break_style.addElement(TextProperties(fontsize="14pt", fontweight="bold"))
+    doc.styles.addElement(heading_with_break_style)
+
+    # Define style for headings (bold, 14pt)
+    heading_style = Style(name="HeadingStyle", family="paragraph")
+    heading_style.addElement(TextProperties(fontsize="14pt", fontweight="bold"))
+    doc.styles.addElement(heading_style)
+
+    # Define style for background text (12pt font, justified, 1.5 line spacing)
     background_text_style = Style(name="BackgroundTextStyle", family="paragraph")
-    text_props = TextProperties(fontsize="12pt")
-    background_text_style.addElement(text_props)
+    background_text_style.addElement(ParagraphProperties(textalign="justify", lineheight="150%"))
+    background_text_style.addElement(TextProperties(fontsize="12pt"))
     doc.styles.addElement(background_text_style)
 
     # Define style for page break
@@ -94,7 +105,7 @@ def create_report(patient_full_title, patient_name, patient_dob, report_creator,
     # Text Info Cell
     text_cell = TableCell()
     today = datetime.now().strftime("%d.%m.%Y")
-    headline = P(text=f"Befundbericht zur Bewegungsanalyse vom {today}")
+    headline = P(text=f"Befundbericht zur Bewegungsanalyse vom {today}", stylename="HeadingStyle")
     text_cell.addElement(headline)
 
     patient_info1 = P(text=f"{patient_full_title} {patient_name}")
@@ -148,19 +159,19 @@ def create_report(patient_full_title, patient_name, patient_dob, report_creator,
             doc.text.addElement(P(text=f"Error adding second logo: {e}"))
             messagebox.showerror("Second Logo Error", f"An error occurred while adding the second logo: {e}")
 
-    # Page Break
-    doc.text.addElement(P(stylename="PageBreakStyle"))
+    # Second Page Content - Hintergrund heading with page break
+    doc.text.addElement(P(text="Hintergrund", stylename="HeadingWithBreakStyle"))
 
-    # Second Page Content
-    doc.text.addElement(P(text="Hintergrund"))
+    # Add spacing after heading
+    doc.text.addElement(P(text=""))
 
     background_text = """Vielen Dank, dass Sie sich für die Bewegungsanalyse bei uns entschieden haben. Durch die ganzheitliche Bewegungsanalyse besitzen Sie nun gute Voraussetzungen, um Ihre Beschwerden zu lindern. Denn ein Großteil aller orthopädischen Beschwerden sind auf Schonhaltungen und Kompensationsbewegungen (funktioneller Natur) zurückzuführen. Funktionelle Beschwerdeauslöser sind mit einer zielgerichteten Therapie gut zu behandeln. Die vorliegenden Analyseergebnisse dienen Ihrem Arzt oder Therapeuten für eine schnelle und effektive Entscheidungsfindung hinsichtlich Ihres Therapieplans. Nachfolgend möchten wir Ihnen wichtige Informationen zu unseren Messsystemen geben.
 <BREAK>
-Unsere 4D-Wirbelsäulenvermessung rekonstruiert mit einem strahlungsfreien Verfahren Ihre Rückenoberfläche und den Beckenstand dreidimensional über eine definierte Zeitspanne (vierte Dimension). Dazu wird ein Lichtraster auf Ihre Rückenoberfläche projiziert, über dessen Verzerrungen die funktionelle Stellung Ihrer Wirbelsäule errechnet wird.
-Die Vorteile der 4D-Wirbelsäulenvermessung sind vielfältig: keine Strahlenbelastung, geringe Messdauer, Darstellung ab- und aufsteigender Einflüsse auf den Körper (u.a. Zähne und Kiefergelenke, Füße), sehr sensitives Verfahren, synchrone Darstellung von Oberkörper, Becken, Beinachse und Fußdruckmessung in der Bewegung. Von besonderer Wichtigkeit ist die Möglichkeit, den Therapieerfolg über den Zeitverlauf ohne schädliche Strahlenbelastung sichtbar zu machen.
+Unsere 4D-Wirbelsäulenvermessung rekonstruiert mit einem strahlungsfreien Verfahren Ihre Rückenoberfläche und den Beckenstand dreidimensional über eine definierte Zeitspanne (vierte Dimension). Dazu wird ein Lichtraster auf Ihre Rückenoberfläche projiziert, über dessen Verzerrungen die funktionelle Stellung Ihrer Wirbelsäule errechnet wird. Die Vorteile der 4D-Wirbelsäulenvermessung sind vielfältig: keine Strahlenbelastung, geringe Messdauer, Darstellung ab- und aufsteigender Einflüsse auf den Körper (u.a. Zähne und Kiefergelenke, Füße), sehr sensitives Verfahren, synchrone Darstellung von Oberkörper, Becken, Beinachse und Fußdruckmessung in der Bewegung. Von besonderer Wichtigkeit ist die Möglichkeit, den Therapieerfolg über den Zeitverlauf ohne schädliche Strahlenbelastung sichtbar zu machen.
 <BREAK>
-Der Befundbericht der 4D-Wirbelsäulenvermessung dient der schriftlichen Zusammenfassung Ihrer Analyseergebnisse. Viele Auffälligkeiten stehen im wechselwirkenden Zusammenhang und sind immer wieder auf eine gemeinsame Ursache zurückzuführen. So kann z.B. eine Fehlhaltung der Wirbelsäule über Verkettungsmechanismen Auswirkungen auf die Beinachsen oder eine veränderte Ansteuerung  der Beinmuskulatur bewirken, die dann von der Norm abweicht und von uns dargestellt wird.
-Eine Auffälligkeit ist dabei nicht zwangsläufig negativ besetzt, sondern stellt erfolgreiche Ausgleichsversuche Ihres Körpers dar. Um langfristig Überlastungsschäden vorzubeugen, suchen wir gemeinsam mit Ihnen die Ursache für Beschwerden und Kompensationsmuster. Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlüssige Interpretation die Anamnese und klinische Untersuchung durch den Arzt nicht ersetzt, sondern ergänzt, und Ihnen ein differenziertes Therapiekonzept ermöglicht. Im Gegensatz zur 4D – Wirbelsäulenvermessung können diagnostische ergänzende bildgebende Verfahren (MRT, CT oder Röntgen) strukturelle Auffälligkeiten im Körper sichtbar machen."""
+Der Befundbericht der 4D-Wirbelsäulenvermessung dient der schriftlichen Zusammenfassung Ihrer Analyseergebnisse. Viele Auffälligkeiten stehen im wechselwirkenden Zusammenhang und sind immer wieder auf eine gemeinsame Ursache zurückzuführen. So kann z.B. eine Fehlhaltung der Wirbelsäule über Verkettungsmechanismen Auswirkungen auf die Beinachsen oder eine veränderte Ansteuerung  der Beinmuskulatur bewirken, die dann von der Norm abweicht und von uns dargestellt wird. Eine Auffälligkeit ist dabei nicht zwangsläufig negativ besetzt, sondern stellt erfolgreiche Ausgleichsversuche Ihres Körpers dar. Um langfristig Überlastungsschäden vorzubeugen, suchen wir gemeinsam mit Ihnen die Ursache für Beschwerden und Kompensationsmuster.
+<BREAK>
+Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlüssige Interpretation die Anamnese und klinische Untersuchung durch den Arzt nicht ersetzt, sondern ergänzt, und Ihnen ein differenziertes Therapiekonzept ermöglicht. Im Gegensatz zur 4D – Wirbelsäulenvermessung können diagnostische ergänzende bildgebende Verfahren (MRT, CT oder Röntgen) strukturelle Auffälligkeiten im Körper sichtbar machen."""
 
     text_segments = background_text.split("<BREAK>")
     for segment in text_segments:
