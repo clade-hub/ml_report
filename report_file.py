@@ -3,14 +3,90 @@ from tkinter import filedialog, messagebox, simpledialog
 import os
 from odf.opendocument import OpenDocumentText
 from odf.draw import Frame, Image
-from odf.text import P
+from odf.text import P, List, ListItem
 from odf.table import Table, TableColumn, TableRow, TableCell
-from odf.style import Style, TableColumnProperties, ParagraphProperties, TextProperties
+from odf.style import Style, TableColumnProperties, ParagraphProperties, TextProperties, ListLevelProperties
+from odf.text import ListStyle, ListLevelStyleBullet
 from datetime import datetime
 from PIL import Image as PILImage
 
 
-def create_report(patient_full_title, patient_name, patient_dob, report_creator, odt_path, logo_path=None, second_logo_path=None):
+def parse_ini_file(ini_path):
+    """Parse the .ini file and extract kyphosis and lordosis angles"""
+    try:
+        with open(ini_path, 'r', encoding='utf-16') as f:
+            lines = f.readlines()
+
+        kyphosis_angle = None
+        lordosis_angle = None
+
+        # Line 25 for kyphosis (index 24)
+        if len(lines) > 24:
+            parts = lines[24].split('\t')
+            if len(parts) >= 2:
+                value_str = parts[1].strip().replace(',', '.')
+                try:
+                    kyphosis_angle = float(value_str)
+                except ValueError:
+                    pass
+
+        # Line 28 for lordosis (index 27)
+        if len(lines) > 27:
+            parts = lines[27].split('\t')
+            if len(parts) >= 2:
+                value_str = parts[1].strip().replace(',', '.')
+                try:
+                    lordosis_angle = float(value_str)
+                except ValueError:
+                    pass
+
+        return kyphosis_angle, lordosis_angle
+    except Exception as e:
+        messagebox.showerror("Error", f"Error parsing INI file: {e}")
+        return None, None
+
+
+def classify_kyphosis(angle):
+    """Classify kyphosis angle (same for both genders)"""
+    if angle < 31:
+        return "Eine Hypokyphose"
+    elif 31 <= angle <= 38:
+        return "Eine Tendenz zur Hypokyphose"
+    elif 39 <= angle <= 56:
+        return "Ein normgerechter Kyphosewinkel"
+    elif 57 <= angle <= 64:
+        return "Eine Tendenz zur Hyperkyphose"
+    else:  # >= 64
+        return "Eine Hyperkyphose"
+
+
+def classify_lordosis(angle, gender):
+    """Classify lordosis angle based on gender"""
+    if gender == "Female":
+        if angle < 24:
+            return "Eine Hypolordose"
+        elif 24 <= angle <= 32:
+            return "Eine Tendenz zur Hypolordose"
+        elif 33 <= angle <= 51:
+            return "Ein normgerechter Lordosewinkel"
+        elif 52 <= angle <= 60:
+            return "Eine Tendenz zur Hyperlordose"
+        else:  # > 60
+            return "Eine Hyperlordose"
+    else:  # Male
+        if angle < 18:
+            return "Eine Hypolordose"
+        elif 18 <= angle <= 25:
+            return "Eine Tendenz zur Hypolordose"
+        elif 26 <= angle <= 42:
+            return "Eine normgerechte Lordose"
+        elif 43 <= angle <= 49:
+            return "Eine Tendenz zur Hyperlordose"
+        else:  # > 49
+            return "Eine Hyperlordose"
+
+
+def create_report(patient_full_title, patient_name, patient_dob, report_creator, odt_path, gender, ini_path, logo_path=None, second_logo_path=None):
     doc = OpenDocumentText()
 
     # Define styles for table columns (3 columns: logo, text1, text2)
@@ -51,6 +127,12 @@ def create_report(patient_full_title, patient_name, patient_dob, report_creator,
     background_text_style.addElement(ParagraphProperties(textalign="justify", lineheight="150%"))
     background_text_style.addElement(TextProperties(fontsize="12pt"))
     doc.styles.addElement(background_text_style)
+
+    # Define bullet list style
+    bullet_list_style = ListStyle(name="BulletList")
+    bullet_level = ListLevelStyleBullet(level=1, stylename="BulletList", bulletchar="•")
+    bullet_list_style.addElement(bullet_level)
+    doc.styles.addElement(bullet_list_style)
 
     # Define style for page break
     page_break_style = Style(name="PageBreakStyle", family="paragraph")
@@ -119,7 +201,7 @@ def create_report(patient_full_title, patient_name, patient_dob, report_creator,
     text_cell.addElement(patient_info1)
     text_cell.addElement(patient_info2)
 
-    creator_info = P(text=f"Bericht erstellt von: {report_creator}")
+    creator_info = P(text=f"Bericht erstellt von: {report_creator} am {today}")
     text_cell.addElement(creator_info)
 
     header_row.addElement(text_cell)
@@ -182,6 +264,33 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
     text_segments = background_text.split("<BREAK>")
     for segment in text_segments:
         doc.text.addElement(P(text=segment.strip(), stylename="BackgroundTextStyle"))
+
+    # Third Page Content - Static Analysis
+    doc.text.addElement(P(text="Statische Analyse", stylename="HeadingWithBreakStyle"))
+    doc.text.addElement(P(text=""))
+
+    # Parse INI file and generate analysis
+    kyphosis_angle, lordosis_angle = parse_ini_file(ini_path)
+
+    if kyphosis_angle is not None and lordosis_angle is not None:
+        # Create bullet list
+        bullet_list = List(stylename="BulletList")
+
+        # Kyphosis analysis
+        kyphosis_text = classify_kyphosis(kyphosis_angle)
+        kyphosis_item = ListItem()
+        kyphosis_item.addElement(P(text=kyphosis_text))
+        bullet_list.addElement(kyphosis_item)
+
+        # Lordosis analysis
+        lordosis_text = classify_lordosis(lordosis_angle, gender)
+        lordosis_item = ListItem()
+        lordosis_item.addElement(P(text=lordosis_text))
+        bullet_list.addElement(lordosis_item)
+
+        doc.text.addElement(bullet_list)
+    else:
+        doc.text.addElement(P(text="Fehler beim Lesen der Messwerte aus der INI-Datei."))
 
     doc.save(odt_path)
 
@@ -367,6 +476,15 @@ def generate_report():
         messagebox.showinfo("Cancelled", "Report creator selection was cancelled.")
         return
 
+    # Ask for static analysis INI file
+    ini_path = filedialog.askopenfilename(
+        title="Select Static Analysis INI file",
+        filetypes=[("INI files", "*.ini"), ("All files", "*.*")]
+    )
+    if not ini_path:
+        messagebox.showinfo("Cancelled", "INI file selection was cancelled.")
+        return
+
     logo_path = "/home/pm/Schreibtisch/Berichttool/logo_orthopassion.png"
     second_logo_path = "/home/pm/Schreibtisch/Berichttool/logo_2_orthopassion.png"
 
@@ -379,7 +497,7 @@ def generate_report():
         return
 
     try:
-        create_report(patient_full_title, patient_name, patient_dob, report_creator, odt_path, logo_path, second_logo_path)
+        create_report(patient_full_title, patient_name, patient_dob, report_creator, odt_path, gender, ini_path, logo_path, second_logo_path)
         messagebox.showinfo("Success", f"Successfully created {odt_path}")
     except Exception as e:
         messagebox.showerror("Error", f"An error occurred: {e}")
