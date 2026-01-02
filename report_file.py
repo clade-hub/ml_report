@@ -13,17 +13,22 @@ from PIL import Image as PILImage
 def create_report(patient_full_title, patient_name, patient_dob, report_creator, odt_path, logo_path=None, second_logo_path=None):
     doc = OpenDocumentText()
 
-    # Define styles for table columns
-    logo_col_width_cm = 6.0
-    text_col_width_cm = 12.0
+    # Define styles for table columns (3 columns: logo, text1, text2)
+    logo_col_width_cm = 4.5
+    text_col1_width_cm = 6.75
+    text_col2_width_cm = 6.75
 
     logo_col_style = Style(name="LogoColumnStyle", family="table-column")
     logo_col_style.addElement(TableColumnProperties(columnwidth=f"{logo_col_width_cm}cm"))
     doc.styles.addElement(logo_col_style)
 
-    text_col_style = Style(name="TextColumnStyle", family="table-column")
-    text_col_style.addElement(TableColumnProperties(columnwidth=f"{text_col_width_cm}cm"))
-    doc.styles.addElement(text_col_style)
+    text_col1_style = Style(name="TextColumn1Style", family="table-column")
+    text_col1_style.addElement(TableColumnProperties(columnwidth=f"{text_col1_width_cm}cm"))
+    doc.styles.addElement(text_col1_style)
+
+    text_col2_style = Style(name="TextColumn2Style", family="table-column")
+    text_col2_style.addElement(TableColumnProperties(columnwidth=f"{text_col2_width_cm}cm"))
+    doc.styles.addElement(text_col2_style)
 
     # Define style for centered paragraphs
     center_p_style = Style(name="CenterParagraph", family="paragraph")
@@ -52,10 +57,11 @@ def create_report(patient_full_title, patient_name, patient_dob, report_creator,
     page_break_style.addElement(ParagraphProperties(breakbefore="page"))
     doc.styles.addElement(page_break_style)
 
-    # Create header table
+    # Create header table with 3 columns
     header_table = Table(name="HeaderLayoutTable")
     header_table.addElement(TableColumn(stylename="LogoColumnStyle"))
-    header_table.addElement(TableColumn(stylename="TextColumnStyle"))
+    header_table.addElement(TableColumn(stylename="TextColumn1Style"))
+    header_table.addElement(TableColumn(stylename="TextColumn2Style"))
 
     header_row = TableRow()
 
@@ -102,8 +108,8 @@ def create_report(patient_full_title, patient_name, patient_dob, report_creator,
 
     header_row.addElement(logo_cell)
 
-    # Text Info Cell
-    text_cell = TableCell()
+    # Text Info Cell (spans 2 columns)
+    text_cell = TableCell(numbercolumnsspanned=2)
     today = datetime.now().strftime("%d.%m.%Y")
     headline = P(text=f"Befundbericht zur Bewegungsanalyse vom {today}", stylename="HeadingStyle")
     text_cell.addElement(headline)
