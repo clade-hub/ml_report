@@ -79,7 +79,7 @@ def classify_lordosis(angle, gender):
         elif 18 <= angle <= 25:
             return "Eine Tendenz zur Hypolordose"
         elif 26 <= angle <= 42:
-            return "Eine normgerechte Lordose"
+            return "Eine normgerechter Lordosewinkel"
         elif 43 <= angle <= 49:
             return "Eine Tendenz zur Hyperlordose"
         else:  # > 49
@@ -127,6 +127,12 @@ def create_report(patient_full_title, patient_name, patient_dob, report_creator,
     background_text_style.addElement(ParagraphProperties(textalign="justify", lineheight="150%"))
     background_text_style.addElement(TextProperties(fontsize="12pt"))
     doc.styles.addElement(background_text_style)
+
+    # Define style for bullet list items (12pt font, 1.5 line spacing)
+    bullet_text_style = Style(name="BulletTextStyle", family="paragraph")
+    bullet_text_style.addElement(ParagraphProperties(lineheight="150%"))
+    bullet_text_style.addElement(TextProperties(fontsize="12pt"))
+    doc.styles.addElement(bullet_text_style)
 
     # Define bullet list style
     bullet_list_style = ListStyle(name="BulletList")
@@ -279,13 +285,13 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
         # Kyphosis analysis
         kyphosis_text = classify_kyphosis(kyphosis_angle)
         kyphosis_item = ListItem()
-        kyphosis_item.addElement(P(text=kyphosis_text))
+        kyphosis_item.addElement(P(text=kyphosis_text, stylename="BulletTextStyle"))
         bullet_list.addElement(kyphosis_item)
 
         # Lordosis analysis
         lordosis_text = classify_lordosis(lordosis_angle, gender)
         lordosis_item = ListItem()
-        lordosis_item.addElement(P(text=lordosis_text))
+        lordosis_item.addElement(P(text=lordosis_text, stylename="BulletTextStyle"))
         bullet_list.addElement(lordosis_item)
 
         doc.text.addElement(bullet_list)
