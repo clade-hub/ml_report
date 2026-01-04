@@ -119,6 +119,64 @@ def crop_statik_screenshots(pdf_path):
         return []
 
 
+def crop_gehen_screenshots(pdf_path):
+    """
+    Crop 8 screenshots from gehen.pdf using hardcoded coordinates.
+    Returns list of paths to temporary cropped image files.
+    """
+    try:
+        # Hardcoded crop coordinates for 8 screenshots
+        screenshots_config = [
+            {"page": 1, "left": 33.05, "top": 16.20, "right": 90.48, "bottom": 86.87},  # Screenshot 1 (Dynamische Beckenanalyse)
+            {"page": 2, "left": 0.68, "top": 14.99, "right": 46.55, "bottom": 87.00},   # Screenshot 2 (Dynamische Wirbelsäulenanalyse)
+            {"page": 3, "left": 16.87, "top": 18.05, "right": 91.17, "bottom": 73.25},  # Screenshot 3 (Ganganalyse - page 3)
+            {"page": 5, "left": 13.73, "top": 18.69, "right": 92.08, "bottom": 80.82},  # Screenshot 4 (Ganganalyse - page 5)
+            {"page": 4, "left": 2.62, "top": 17.57, "right": 92.88, "bottom": 87.11},   # Screenshot 5 (Ganganalyse - page 4)
+            {"page": 6, "left": 2.74, "top": 22.24, "right": 93.56, "bottom": 83.80},   # Screenshot 6 (Ganganalyse - page 6)
+            {"page": 8, "left": 3.13, "top": 19.10, "right": 94.02, "bottom": 87.11},   # Screenshot 7 (Dynamische Pedografie - page 8)
+            {"page": 7, "left": 14.36, "top": 18.69, "right": 93.90, "bottom": 84.05},  # Screenshot 8 (Dynamische Pedografie - page 7)
+        ]
+
+        screenshot_paths = []
+
+        for i, config in enumerate(screenshots_config, 1):
+            print(f"\nProcessing Gehen Screenshot {i} from page {config['page']}...")
+
+            # Convert specific page at 300 DPI for high quality
+            images = convert_from_path(pdf_path, dpi=300, first_page=config['page'], last_page=config['page'])
+            if not images:
+                print(f"Warning: Could not convert page {config['page']}")
+                screenshot_paths.append(None)
+                continue
+
+            image = images[0]
+            img_width, img_height = image.size
+
+            # Calculate crop coordinates from percentages
+            left = int((config['left'] / 100) * img_width)
+            top = int((config['top'] / 100) * img_height)
+            right = int((config['right'] / 100) * img_width)
+            bottom = int((config['bottom'] / 100) * img_height)
+
+            # Crop the image
+            cropped_image = image.crop((left, top, right, bottom))
+            crop_width, crop_height = cropped_image.size
+            print(f"Gehen Screenshot {i} cropped: {crop_width}x{crop_height} pixels")
+
+            # Save to temporary file
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+            cropped_image.save(temp_file.name, 'PNG', quality=95)
+            screenshot_paths.append(temp_file.name)
+
+        return screenshot_paths
+
+    except Exception as e:
+        print(f"Error cropping gehen screenshots: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+
 def parse_ini_file(ini_path):
     """Parse the .ini file and extract kyphosis, lordosis, and scoliosis data"""
     try:
@@ -133,6 +191,7 @@ def parse_ini_file(ini_path):
         lateral_deviation_left = None
         lateral_deviation_right = None
         sva_axis = None
+        beckenhochstand = None
 
         # Line 8 for SVA axis (index 7)
         if len(lines) > 7:
@@ -141,6 +200,16 @@ def parse_ini_file(ini_path):
                 value_str = parts[1].strip().replace(',', '.')
                 try:
                     sva_axis = float(value_str)
+                except ValueError:
+                    pass
+
+        # Line 11 for Beckenhochstand (index 10)
+        if len(lines) > 10:
+            parts = lines[10].split('\t')
+            if len(parts) >= 2:
+                value_str = parts[1].strip().replace(',', '.')
+                try:
+                    beckenhochstand = float(value_str)
                 except ValueError:
                     pass
 
@@ -216,10 +285,92 @@ def parse_ini_file(ini_path):
 
         return (kyphosis_angle, lordosis_angle, scoliosis_angle,
                 surface_rotation_left, surface_rotation_right,
-                lateral_deviation_left, lateral_deviation_right, sva_axis)
+                lateral_deviation_left, lateral_deviation_right, sva_axis, beckenhochstand)
     except Exception as e:
         messagebox.showerror("Error", f"Error parsing INI file: {e}")
-        return None, None, None, None, None, None, None, None
+        return None, None, None, None, None, None, None, None, None
+
+
+def parse_motion_ini_file(ini_path):
+    """Parse the 4D motion .ini file and extract pelvic drop min and max values"""
+    try:
+        with open(ini_path, 'r', encoding='utf-16') as f:
+            lines = f.readlines()
+
+        pelvic_drop_min = None
+        pelvic_drop_max = None
+
+        # Line 11 (index 10) for pelvic drop min (column 3) and max (column 4)
+        if len(lines) > 10:
+            parts = lines[10].split('\t')
+            # Column 3 (index 2) for min
+            if len(parts) >= 3:
+                value_str = parts[2].strip().replace(',', '.')
+                try:
+                    pelvic_drop_min = float(value_str)
+                except ValueError:
+                    pass
+            # Column 4 (index 3) for max
+            if len(parts) >= 4:
+                value_str = parts[3].strip().replace(',', '.')
+                try:
+                    pelvic_drop_max = float(value_str)
+                except ValueError:
+                    pass
+
+        return pelvic_drop_min, pelvic_drop_max
+    except Exception as e:
+        print(f"Error parsing motion INI file: {e}")
+        return None, None
+
+
+def calculate_pelvic_drop_sentence(beckenhochstand, beckenhochstand_side, motion_min, motion_max):
+    """Calculate pelvic drop values and generate appropriate sentence
+
+    Args:
+        beckenhochstand: Value from 4D average .ini file
+        beckenhochstand_side: "rechts", "links", or "gerade"
+        motion_min: Min value from 4D motion .ini file
+        motion_max: Max value from 4D motion .ini file
+
+    Returns:
+        Sentence describing the pelvic drop
+    """
+    if motion_min is None or motion_max is None:
+        return None
+
+    # Perform calculation based on Beckenhochstand side
+    if beckenhochstand_side == "links" and beckenhochstand is not None:
+        min_final = motion_min + beckenhochstand
+        max_final = motion_max + beckenhochstand
+    elif beckenhochstand_side == "rechts" and beckenhochstand is not None:
+        min_final = motion_min - beckenhochstand
+        max_final = motion_max - beckenhochstand
+    else:  # "gerade"
+        min_final = motion_min
+        max_final = motion_max
+
+    # Calculate absolute difference
+    abs_difference = abs(abs(max_final) - abs(min_final))
+
+    # Format values with one decimal place (using absolute values to remove minus sign)
+    min_str = f"{abs(min_final):.1f}"
+    max_str = f"{abs(max_final):.1f}"
+
+    # Generate sentence based on difference
+    if abs_difference < 2:
+        # Symmetric pelvic drop
+        sentence = f"Unter Berücksichtigung der geklebten Beckenmarker findet ein symmetrischer Pelvic Drop von ({min_str}°R | {max_str}°L) statt"
+    else:
+        # Asymmetric pelvic drop - determine which stance phase
+        if abs(max_final) > abs(min_final):
+            stance_phase = "rechten"
+        else:
+            stance_phase = "linken"
+
+        sentence = f"Unter Berücksichtigung der geklebten Beckenmarker findet während der {stance_phase} Standphase ein asymmetrischer Pelvic Drop von ({min_str}°R | {max_str}°L) statt"
+
+    return sentence
 
 
 def classify_kyphosis(angle):
@@ -340,7 +491,7 @@ def generate_marker_sentence(markers):
 
 def create_report(patient_full_title, patient_name, patient_dob, report_creator, odt_path, gender, ini_path,
                   sim_performed, isg_right, isg_left, markers, logo_path=None, second_logo_path=None,
-                  screenshot_path=None, statik_screenshots=None):
+                  screenshot_path=None, statik_screenshots=None, pelvic_drop_sentence=None, gehen_screenshots=None):
     doc = OpenDocumentText()
 
     # Define styles for table columns (3 columns: logo, text1, text2)
@@ -531,7 +682,7 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
 
     # Parse INI file and generate analysis
     (kyphosis_angle, lordosis_angle, scoliosis_angle,
-     surf_rot_left, surf_rot_right, lat_dev_left, lat_dev_right, sva_axis) = parse_ini_file(ini_path)
+     surf_rot_left, surf_rot_right, lat_dev_left, lat_dev_right, sva_axis, beckenhochstand) = parse_ini_file(ini_path)
 
     if kyphosis_angle is not None and lordosis_angle is not None and scoliosis_angle is not None:
         # Create bullet list
@@ -727,6 +878,219 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
                             print(f"Statik Screenshot {screenshot_idx + 1} inserted: {frame_width_cm}cm x {frame_height_cm:.2f}cm")
                     except Exception as e:
                         print(f"Error adding statik screenshot {screenshot_idx + 1}: {e}")
+
+        # Add new section: Dynamische Beckenanalyse
+        if pelvic_drop_sentence:
+            # Page break before new section
+            doc.text.addElement(P(text="Dynamische Beckenanalyse", stylename="HeadingWithBreakStyle"))
+            doc.text.addElement(P(text=""))
+
+            # Add bullet point with pelvic drop sentence
+            pelvic_bullet_list = List(stylename="BulletList")
+            pelvic_item = ListItem()
+            pelvic_item.addElement(P(text=pelvic_drop_sentence, stylename="BulletTextStyle"))
+            pelvic_bullet_list.addElement(pelvic_item)
+            doc.text.addElement(pelvic_bullet_list)
+
+            # Add gehen screenshot 1 below pelvic drop sentence (if available)
+            if gehen_screenshots and len(gehen_screenshots) >= 1 and gehen_screenshots[0] and os.path.exists(gehen_screenshots[0]):
+                try:
+                    # Add 2 empty lines as spacing
+                    doc.text.addElement(P(text=""))
+                    doc.text.addElement(P(text=""))
+
+                    # Get screenshot dimensions
+                    with PILImage.open(gehen_screenshots[0]) as img:
+                        img_width_px, img_height_px = img.size
+
+                    # Set width to 16cm and calculate height maintaining aspect ratio
+                    frame_width_cm = 16.0
+                    aspect_ratio = img_height_px / img_width_px if img_width_px > 0 else 1
+                    frame_height_cm = frame_width_cm * aspect_ratio
+
+                    # Create centered paragraph for screenshot
+                    centered_p = P(stylename="CenterParagraph")
+                    frame = Frame(
+                        name="GehenScreenshot1",
+                        width=f"{frame_width_cm}cm",
+                        height=f"{frame_height_cm}cm",
+                        anchortype="paragraph"
+                    )
+                    href = doc.addPicture(gehen_screenshots[0])
+                    if href:
+                        frame.addElement(Image(href=href))
+                        centered_p.addElement(frame)
+                        doc.text.addElement(centered_p)
+                        print(f"Gehen Screenshot 1 inserted: {frame_width_cm}cm x {frame_height_cm:.2f}cm")
+
+                except Exception as e:
+                    print(f"Error adding gehen screenshot 1: {e}")
+
+        # Add new section: Dynamische Wirbelsäulenanalyse with gehen screenshot 2
+        if gehen_screenshots and len(gehen_screenshots) >= 2 and gehen_screenshots[1] and os.path.exists(gehen_screenshots[1]):
+            try:
+                # Page break with heading
+                doc.text.addElement(P(text="Dynamische Wirbelsäulenanalyse", stylename="HeadingWithBreakStyle"))
+
+                # Get screenshot dimensions
+                with PILImage.open(gehen_screenshots[1]) as img:
+                    img_width_px, img_height_px = img.size
+
+                # Set width to 16cm and calculate height maintaining aspect ratio
+                frame_width_cm = 16.0
+                aspect_ratio = img_height_px / img_width_px if img_width_px > 0 else 1
+                frame_height_cm = frame_width_cm * aspect_ratio
+
+                # Create centered paragraph for screenshot
+                centered_p = P(stylename="CenterParagraph")
+                frame = Frame(
+                    name="GehenScreenshot2",
+                    width=f"{frame_width_cm}cm",
+                    height=f"{frame_height_cm}cm",
+                    anchortype="paragraph"
+                )
+                href = doc.addPicture(gehen_screenshots[1])
+                if href:
+                    frame.addElement(Image(href=href))
+                    centered_p.addElement(frame)
+                    doc.text.addElement(centered_p)
+                    print(f"Gehen Screenshot 2 inserted: {frame_width_cm}cm x {frame_height_cm:.2f}cm")
+
+            except Exception as e:
+                print(f"Error adding gehen screenshot 2: {e}")
+
+        # Add new section: Ganganalyse
+        if gehen_screenshots and len(gehen_screenshots) >= 6:
+            # Page break with heading
+            doc.text.addElement(P(text="Ganganalyse", stylename="HeadingWithBreakStyle"))
+            doc.text.addElement(P(text=""))
+
+            # Add 4 bullet points with XXX placeholder
+            ganganalyse_bullet_list = List(stylename="BulletList")
+            for i in range(4):
+                bullet_item = ListItem()
+                bullet_item.addElement(P(text="XXX", stylename="BulletTextStyle"))
+                ganganalyse_bullet_list.addElement(bullet_item)
+            doc.text.addElement(ganganalyse_bullet_list)
+            doc.text.addElement(P(text=""))
+
+            # Add Screenshots 3 and 4 (indices 2 and 3) directly underneath each other
+            for screenshot_idx in [2, 3]:  # Screenshots 3 and 4
+                if gehen_screenshots[screenshot_idx] and os.path.exists(gehen_screenshots[screenshot_idx]):
+                    try:
+                        with PILImage.open(gehen_screenshots[screenshot_idx]) as img:
+                            img_width_px, img_height_px = img.size
+
+                        frame_width_cm = 16.0
+                        aspect_ratio = img_height_px / img_width_px if img_width_px > 0 else 1
+                        frame_height_cm = frame_width_cm * aspect_ratio
+
+                        centered_p = P(stylename="CenterParagraph")
+                        frame = Frame(
+                            name=f"GehenScreenshot{screenshot_idx + 1}",
+                            width=f"{frame_width_cm}cm",
+                            height=f"{frame_height_cm}cm",
+                            anchortype="paragraph"
+                        )
+                        href = doc.addPicture(gehen_screenshots[screenshot_idx])
+                        if href:
+                            frame.addElement(Image(href=href))
+                            centered_p.addElement(frame)
+                            doc.text.addElement(centered_p)
+                            print(f"Gehen Screenshot {screenshot_idx + 1} inserted: {frame_width_cm}cm x {frame_height_cm:.2f}cm")
+                    except Exception as e:
+                        print(f"Error adding gehen screenshot {screenshot_idx + 1}: {e}")
+
+            # Page break before Screenshots 5 and 6
+            doc.text.addElement(P(text="", stylename="PageBreakStyle"))
+
+            # Add Screenshots 5 and 6 (indices 4 and 5) directly underneath each other
+            for screenshot_idx in [4, 5]:  # Screenshots 5 and 6
+                if gehen_screenshots[screenshot_idx] and os.path.exists(gehen_screenshots[screenshot_idx]):
+                    try:
+                        with PILImage.open(gehen_screenshots[screenshot_idx]) as img:
+                            img_width_px, img_height_px = img.size
+
+                        frame_width_cm = 16.0
+                        aspect_ratio = img_height_px / img_width_px if img_width_px > 0 else 1
+                        frame_height_cm = frame_width_cm * aspect_ratio
+
+                        centered_p = P(stylename="CenterParagraph")
+                        frame = Frame(
+                            name=f"GehenScreenshot{screenshot_idx + 1}",
+                            width=f"{frame_width_cm}cm",
+                            height=f"{frame_height_cm}cm",
+                            anchortype="paragraph"
+                        )
+                        href = doc.addPicture(gehen_screenshots[screenshot_idx])
+                        if href:
+                            frame.addElement(Image(href=href))
+                            centered_p.addElement(frame)
+                            doc.text.addElement(centered_p)
+                            print(f"Gehen Screenshot {screenshot_idx + 1} inserted: {frame_width_cm}cm x {frame_height_cm:.2f}cm")
+                    except Exception as e:
+                        print(f"Error adding gehen screenshot {screenshot_idx + 1}: {e}")
+
+        # Add new section: Dynamische Pedografie
+        if gehen_screenshots and len(gehen_screenshots) >= 8:
+            # Page break with heading
+            doc.text.addElement(P(text="Dynamische Pedografie", stylename="HeadingWithBreakStyle"))
+
+            # Add Screenshot 7 (index 6)
+            if gehen_screenshots[6] and os.path.exists(gehen_screenshots[6]):
+                try:
+                    with PILImage.open(gehen_screenshots[6]) as img:
+                        img_width_px, img_height_px = img.size
+
+                    frame_width_cm = 16.0
+                    aspect_ratio = img_height_px / img_width_px if img_width_px > 0 else 1
+                    frame_height_cm = frame_width_cm * aspect_ratio
+
+                    centered_p = P(stylename="CenterParagraph")
+                    frame = Frame(
+                        name="GehenScreenshot7",
+                        width=f"{frame_width_cm}cm",
+                        height=f"{frame_height_cm}cm",
+                        anchortype="paragraph"
+                    )
+                    href = doc.addPicture(gehen_screenshots[6])
+                    if href:
+                        frame.addElement(Image(href=href))
+                        centered_p.addElement(frame)
+                        doc.text.addElement(centered_p)
+                        print(f"Gehen Screenshot 7 inserted: {frame_width_cm}cm x {frame_height_cm:.2f}cm")
+                except Exception as e:
+                    print(f"Error adding gehen screenshot 7: {e}")
+
+            # Add 2 empty lines spacing
+            doc.text.addElement(P(text=""))
+            doc.text.addElement(P(text=""))
+
+            # Add Screenshot 8 (index 7)
+            if gehen_screenshots[7] and os.path.exists(gehen_screenshots[7]):
+                try:
+                    with PILImage.open(gehen_screenshots[7]) as img:
+                        img_width_px, img_height_px = img.size
+
+                    frame_width_cm = 16.0
+                    aspect_ratio = img_height_px / img_width_px if img_width_px > 0 else 1
+                    frame_height_cm = frame_width_cm * aspect_ratio
+
+                    centered_p = P(stylename="CenterParagraph")
+                    frame = Frame(
+                        name="GehenScreenshot8",
+                        width=f"{frame_width_cm}cm",
+                        height=f"{frame_height_cm}cm",
+                        anchortype="paragraph"
+                    )
+                    href = doc.addPicture(gehen_screenshots[7])
+                    if href:
+                        frame.addElement(Image(href=href))
+                        centered_p.addElement(frame)
+                        doc.text.addElement(centered_p)
+                        print(f"Gehen Screenshot 8 inserted: {frame_width_cm}cm x {frame_height_cm:.2f}cm")
+                except Exception as e:
+                    print(f"Error adding gehen screenshot 8: {e}")
 
     else:
         doc.text.addElement(P(text="Fehler beim Lesen der Messwerte aus der INI-Datei."))
@@ -1040,6 +1404,56 @@ class MarkerSelector:
         return self.markers
 
 
+class BeckenhochstandSelector:
+    def __init__(self, parent):
+        self.parent = parent
+        self.beckenhochstand_side = None
+        self.top = tk.Toplevel(parent)
+        self.top.title("Beckenhochstand Position")
+        self.top.transient(parent)
+        self.top.grab_set()
+
+        tk.Label(self.top, text="Für die Pelvic Drop Berechnung,\nist der Beckenhochstand rechts oder links oder gerade?",
+                 font=("Arial", 10)).pack(pady=10)
+
+        self.side_var = tk.StringVar(value="gerade")
+
+        tk.Radiobutton(self.top, text="rechts", variable=self.side_var, value="rechts").pack(anchor="w", padx=20)
+        tk.Radiobutton(self.top, text="links", variable=self.side_var, value="links").pack(anchor="w", padx=20)
+        tk.Radiobutton(self.top, text="gerade", variable=self.side_var, value="gerade").pack(anchor="w", padx=20)
+
+        button_frame = tk.Frame(self.top)
+        button_frame.pack(pady=10)
+
+        tk.Button(button_frame, text="OK", command=self._on_ok).pack(side="left", padx=5)
+        tk.Button(button_frame, text="Cancel", command=self._on_cancel).pack(side="left", padx=5)
+
+        self._center_window()
+        self.top.protocol("WM_DELETE_WINDOW", self._on_cancel)
+
+    def _center_window(self):
+        self.top.update_idletasks()
+        screen_width = self.top.winfo_screenwidth()
+        screen_height = self.top.winfo_screenheight()
+        window_width = self.top.winfo_width()
+        window_height = self.top.winfo_height()
+        x = (screen_width // 2) - (window_width // 2)
+        y = (screen_height // 2) - (window_height // 2)
+        self.top.geometry(f"+{x}+{y}")
+
+    def _on_ok(self):
+        self.beckenhochstand_side = self.side_var.get()
+        self.top.destroy()
+
+    def _on_cancel(self):
+        self.beckenhochstand_side = None
+        self.top.destroy()
+
+    def get_beckenhochstand_side(self):
+        self.parent.wait_window(self.top)
+        return self.beckenhochstand_side
+
+
 class CoordinateFinder:
     def __init__(self, parent):
         self.parent = parent
@@ -1318,9 +1732,98 @@ class StatikCoordinateFinder:
         messagebox.showinfo("All Coordinates Found", result_text)
 
 
+class GehenCoordinateFinder:
+    """Coordinate finder for new gehen.pdf screenshots (pages 3, 5, 4, 6, 8, 7)"""
+    def __init__(self, parent):
+        self.parent = parent
+        self.screenshots_config = [
+            {"name": "Ganganalyse Screenshot 1", "page": 3, "description": "Page 3 - 16cm width (Ganganalyse)"},
+            {"name": "Ganganalyse Screenshot 2", "page": 5, "description": "Page 5 - 16cm width (Ganganalyse)"},
+            {"name": "Ganganalyse Screenshot 3", "page": 4, "description": "Page 4 - 16cm width (Ganganalyse)"},
+            {"name": "Ganganalyse Screenshot 4", "page": 6, "description": "Page 6 - 16cm width (Ganganalyse)"},
+            {"name": "Dynamische Pedografie Screenshot 1", "page": 8, "description": "Page 8 - 16cm width (Dynamische Pedografie)"},
+            {"name": "Dynamische Pedografie Screenshot 2", "page": 7, "description": "Page 7 - 16cm width (Dynamische Pedografie)"},
+        ]
+        self.current_screenshot_index = 0
+        self.all_coordinates = []
+
+    def find_all_coordinates(self):
+        """Start the coordinate finding process"""
+        # Ask user to select folder
+        folder_path = filedialog.askdirectory(title="Select folder containing gehen.pdf")
+        if not folder_path:
+            messagebox.showinfo("Cancelled", "Folder selection was cancelled.")
+            return
+
+        # Look for gehen.pdf
+        pdf_path = os.path.join(folder_path, "gehen.pdf")
+        if not os.path.exists(pdf_path):
+            messagebox.showerror("Error", f"Could not find gehen.pdf in {folder_path}")
+            return
+
+        self.pdf_path = pdf_path
+        self.process_next_screenshot()
+
+    def process_next_screenshot(self):
+        """Process the next screenshot in the sequence"""
+        if self.current_screenshot_index >= len(self.screenshots_config):
+            # All screenshots processed
+            self.show_all_results()
+            return
+
+        config = self.screenshots_config[self.current_screenshot_index]
+        print(f"\n{'='*60}")
+        print(f"Processing {config['name']}: {config['description']}")
+        print(f"{'='*60}")
+
+        # Create coordinate finder for this page
+        finder = CoordinateFinder(self.parent)
+        finder.find_coordinates_from_path(self.pdf_path, config['page'], config['name'])
+        finder.wait_for_completion()
+
+        # Store the coordinates if they were found
+        if hasattr(finder, 'final_coordinates'):
+            self.all_coordinates.append({
+                'screenshot': config['name'],
+                'page': config['page'],
+                'coordinates': finder.final_coordinates
+            })
+
+        # Move to next screenshot
+        self.current_screenshot_index += 1
+        self.process_next_screenshot()
+
+    def show_all_results(self):
+        """Show all collected coordinates"""
+        print("\n" + "="*70)
+        print("NEW GEHEN.PDF COORDINATES (Pages 3, 5, 4, 6, 8, 7)")
+        print("="*70)
+
+        result_text = "NEW GEHEN.PDF COORDINATES (Pages 3, 5, 4, 6, 8, 7):\n" + "="*70 + "\n\n"
+
+        for coord_data in self.all_coordinates:
+            coords = coord_data['coordinates']
+            text = f"{coord_data['screenshot']} (Page {coord_data['page']}):\n"
+            text += f"  Left: {coords['left_pct']:.2f}%\n"
+            text += f"  Top: {coords['top_pct']:.2f}%\n"
+            text += f"  Right: {coords['right_pct']:.2f}%\n"
+            text += f"  Bottom: {coords['bottom_pct']:.2f}%\n\n"
+
+            print(text)
+            result_text += text
+
+        messagebox.showinfo("All Coordinates Found", result_text)
+
+
 def find_statik_coordinates():
     """Helper function to find all statik.pdf coordinates"""
     finder = StatikCoordinateFinder(root)
+    finder.find_all_coordinates()
+
+
+def find_gehen_coordinates():
+    """Helper function to find all gehen.pdf coordinates"""
+    finder = GehenCoordinateFinder(root)
     finder.find_all_coordinates()
 
 
@@ -1403,6 +1906,17 @@ def generate_report():
     else:
         print("Warning: statik.pdf not found in folder")
 
+    # Auto-find and crop screenshots from gehen.pdf
+    gehen_pdf_path = os.path.join(folder_path, "gehen.pdf")
+    gehen_screenshots = []
+    if os.path.exists(gehen_pdf_path):
+        print(f"Found gehen.pdf: {gehen_pdf_path}")
+        gehen_screenshots = crop_gehen_screenshots(gehen_pdf_path)
+        if not gehen_screenshots or len(gehen_screenshots) < 8:
+            print("Warning: Failed to crop all gehen screenshots")
+    else:
+        print("Warning: gehen.pdf not found in folder")
+
     # Ask for SIM measurement
     sim_selector = SIMMeasurementSelector(root)
     sim_performed = sim_selector.get_sim_status()
@@ -1427,6 +1941,42 @@ def generate_report():
         messagebox.showinfo("Cancelled", "Marker selection was cancelled.")
         return
 
+    # Auto-find 4D motion .ini file and calculate pelvic drop
+    pelvic_drop_sentence = None
+    motion_ini_path = None
+    for filename in os.listdir(folder_path):
+        if filename.lower().endswith('.ini') and '4d motion' in filename.lower():
+            motion_ini_path = os.path.join(folder_path, filename)
+            break
+
+    if motion_ini_path:
+        print(f"Found motion .ini file: {motion_ini_path}")
+
+        # Parse both .ini files to get beckenhochstand and motion values
+        (kyphosis_angle, lordosis_angle, scoliosis_angle,
+         surf_rot_left, surf_rot_right, lat_dev_left, lat_dev_right, sva_axis, beckenhochstand) = parse_ini_file(ini_path)
+
+        motion_min, motion_max = parse_motion_ini_file(motion_ini_path)
+
+        if beckenhochstand is not None and motion_min is not None and motion_max is not None:
+            # Ask user for beckenhochstand side
+            beckenhochstand_selector = BeckenhochstandSelector(root)
+            beckenhochstand_side = beckenhochstand_selector.get_beckenhochstand_side()
+
+            if beckenhochstand_side is None:
+                messagebox.showinfo("Cancelled", "Beckenhochstand selection was cancelled.")
+                return
+
+            # Calculate pelvic drop sentence
+            pelvic_drop_sentence = calculate_pelvic_drop_sentence(
+                beckenhochstand, beckenhochstand_side, motion_min, motion_max
+            )
+            print(f"Pelvic drop sentence: {pelvic_drop_sentence}")
+        else:
+            print("Warning: Could not extract all values for pelvic drop calculation")
+    else:
+        print("Warning: 4D motion .ini file not found in folder")
+
     logo_path = "/home/pm/Schreibtisch/Berichttool/logo_orthopassion.png"
     second_logo_path = "/home/pm/Schreibtisch/Berichttool/logo_2_orthopassion.png"
 
@@ -1441,7 +1991,7 @@ def generate_report():
     try:
         create_report(patient_full_title, patient_name, patient_dob, report_creator, odt_path, gender, ini_path,
                       sim_performed, isg_right, isg_left, markers, logo_path, second_logo_path,
-                      screenshot_path, statik_screenshots)
+                      screenshot_path, statik_screenshots, pelvic_drop_sentence, gehen_screenshots)
         messagebox.showinfo("Success", f"Successfully created {odt_path}")
 
         # Clean up temporary screenshot files
@@ -1460,6 +2010,15 @@ def generate_report():
                     print(f"Cleaned up statik screenshot {i}: {screenshot_file}")
                 except:
                     pass
+
+        # Clean up gehen screenshot files
+        for i, screenshot_file in enumerate(gehen_screenshots, 1):
+            if screenshot_file and os.path.exists(screenshot_file):
+                try:
+                    os.remove(screenshot_file)
+                    print(f"Cleaned up gehen screenshot {i}: {screenshot_file}")
+                except:
+                    pass
     except Exception as e:
         messagebox.showerror("Error", f"An error occurred: {e}")
 
@@ -1471,5 +2030,6 @@ root.title("Report Generator")
 tk.Label(root, text="Generate a new report.").pack(pady=10)
 tk.Button(root, text="Generate Report", command=generate_report).pack(pady=10)
 tk.Button(root, text="Find Statik.pdf Coordinates", command=find_statik_coordinates).pack(pady=10)
+tk.Button(root, text="Find Gehen.pdf Coordinates", command=find_gehen_coordinates).pack(pady=10)
 
 root.mainloop()
