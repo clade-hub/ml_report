@@ -3,9 +3,9 @@ from tkinter import filedialog, messagebox, simpledialog
 import os
 from odf.opendocument import OpenDocumentText
 from odf.draw import Frame, Image
-from odf.text import P, List, ListItem
+from odf.text import P, List, ListItem, PageNumber, Span
 from odf.table import Table, TableColumn, TableRow, TableCell
-from odf.style import Style, TableColumnProperties, ParagraphProperties, TextProperties, ListLevelProperties
+from odf.style import Style, TableColumnProperties, ParagraphProperties, TextProperties, ListLevelProperties, PageLayout, PageLayoutProperties, MasterPage, Footer, FooterStyle, TabStops, TabStop, HeaderFooterProperties
 from odf.text import ListStyle, ListLevelStyleBullet
 from datetime import datetime
 from PIL import Image as PILImage, ImageTk
@@ -548,6 +548,76 @@ def create_report(patient_full_title, patient_name, patient_dob, report_creator,
                   screenshot_path=None, statik_screenshots=None, pelvic_drop_sentence=None, gehen_screenshots=None, kraft_screenshots=None):
     doc = OpenDocumentText()
 
+    # Create page layout for first page (no footer)
+    first_page_layout = PageLayout(name="FirstPageLayout")
+    first_page_layout.addElement(PageLayoutProperties(
+        pagewidth="21cm",
+        pageheight="29.7cm",
+        marginleft="2cm",
+        marginright="2cm",
+        margintop="2cm",
+        marginbottom="2cm"
+    ))
+    doc.automaticstyles.addElement(first_page_layout)
+
+    # Create page layout for standard pages (with footer)
+    # Reduced bottom margin to compensate for footer content
+    standard_page_layout = PageLayout(name="StandardPageLayout")
+    standard_page_layout.addElement(PageLayoutProperties(
+        pagewidth="21cm",
+        pageheight="29.7cm",
+        marginleft="2cm",
+        marginright="2cm",
+        margintop="2cm",
+        marginbottom="0.5cm"
+    ))
+    # Add footer style
+    footer_style = FooterStyle()
+    footer_style.addElement(HeaderFooterProperties(minheight="0cm"))
+    standard_page_layout.addElement(footer_style)
+    doc.automaticstyles.addElement(standard_page_layout)
+
+    # Create footer paragraph style (italic, 9pt, left aligned for address)
+    footer_p_style = Style(name="FooterParagraphStyle", family="paragraph")
+    footer_p_style.addElement(ParagraphProperties(textalign="left"))
+    footer_p_style.addElement(TextProperties(fontsize="9pt", fontstyle="italic"))
+    doc.styles.addElement(footer_p_style)
+
+    # Create footer paragraph style for page number (right aligned, 9pt)
+    footer_page_num_style = Style(name="FooterPageNumStyle", family="paragraph")
+    footer_page_num_style.addElement(ParagraphProperties(textalign="right"))
+    footer_page_num_style.addElement(TextProperties(fontsize="9pt"))
+    doc.styles.addElement(footer_page_num_style)
+
+    # Create first page master (no footer) - must be listed first to be the default
+    first_master = MasterPage(name="First", pagelayoutname="FirstPageLayout")
+    doc.masterstyles.addElement(first_master)
+
+    # Create standard master page (with footer and page numbers)
+    standard_master = MasterPage(name="Standard", pagelayoutname="StandardPageLayout")
+    # Add footer content: address on left, page number on right (separate lines)
+    footer = Footer()
+    # Page number line (right aligned, at top of footer) - subtract 1 so page 2 shows as "1"
+    footer_pnum = P(stylename="FooterPageNumStyle")
+    footer_pnum.addElement(PageNumber(numformat="1", pageadjust="-1"))
+    footer.addElement(footer_pnum)
+    # Address lines (left aligned, italic)
+    footer_p1 = P(stylename="FooterParagraphStyle")
+    footer_p1.addText("Orthopassion - Privatpraxis für regenerative Orthopädie und Osteopathie")
+    footer.addElement(footer_p1)
+    footer_p2 = P(stylename="FooterParagraphStyle")
+    footer_p2.addText("Gartenstraße 28, 79108 Freiburg im Breisgau")
+    footer.addElement(footer_p2)
+    footer_p3 = P(stylename="FooterParagraphStyle")
+    footer_p3.addText("0761 – 769 911 66, Info@orthopassion.de")
+    footer.addElement(footer_p3)
+    standard_master.addElement(footer)
+    doc.masterstyles.addElement(standard_master)
+
+    # Style for first page content (uses First master - no footer)
+    first_page_content_style = Style(name="FirstPageContentStyle", family="paragraph", masterpagename="First")
+    doc.styles.addElement(first_page_content_style)
+
     # Define styles for table columns (3 columns: logo, text1, text2)
     logo_col_width_cm = 4.5
     text_col1_width_cm = 6.75
@@ -570,11 +640,19 @@ def create_report(patient_full_title, patient_name, patient_dob, report_creator,
     center_p_style.addElement(ParagraphProperties(textalign="center"))
     doc.styles.addElement(center_p_style)
 
-    # Define style for headings with page break (bold, 14pt)
-    heading_with_break_style = Style(name="HeadingWithBreakStyle", family="paragraph")
-    heading_with_break_style.addElement(ParagraphProperties(breakbefore="page"))
+    # Define style for headings with page break (bold, 14pt) - uses Standard master with footer, resets page to 1
+    heading_with_break_style = Style(name="HeadingWithBreakStyle", family="paragraph", masterpagename="Standard")
+    hwb_props = ParagraphProperties(breakbefore="page")
+    hwb_props.setAttrNS("urn:oasis:names:tc:opendocument:xmlns:style:1.0", "style:page-number", "1")
+    heading_with_break_style.addElement(hwb_props)
     heading_with_break_style.addElement(TextProperties(fontsize="14pt", fontweight="bold"))
     doc.styles.addElement(heading_with_break_style)
+
+    # Define style for subsequent page breaks (bold, 14pt) - continues on Standard master
+    heading_page_break_style = Style(name="HeadingPageBreakStyle", family="paragraph")
+    heading_page_break_style.addElement(ParagraphProperties(breakbefore="page"))
+    heading_page_break_style.addElement(TextProperties(fontsize="14pt", fontweight="bold"))
+    doc.styles.addElement(heading_page_break_style)
 
     # Define style for headings (bold, 14pt)
     heading_style = Style(name="HeadingStyle", family="paragraph")
@@ -599,10 +677,14 @@ def create_report(patient_full_title, patient_name, patient_dob, report_creator,
     bullet_list_style.addElement(bullet_level)
     doc.styles.addElement(bullet_list_style)
 
-    # Define style for page break
+    # Define style for page break (continues page numbering)
     page_break_style = Style(name="PageBreakStyle", family="paragraph")
     page_break_style.addElement(ParagraphProperties(breakbefore="page"))
     doc.styles.addElement(page_break_style)
+
+    # Define style for first page content (uses First master - no footer)
+    first_page_style = Style(name="FirstPageStyle", family="paragraph", masterpagename="First")
+    doc.styles.addElement(first_page_style)
 
     # Create header table with 3 columns
     header_table = Table(name="HeaderLayoutTable")
@@ -671,8 +753,12 @@ def create_report(patient_full_title, patient_name, patient_dob, report_creator,
 
     header_row.addElement(text_cell)
     header_table.addElement(header_row)
+
+    # Add invisible paragraph to establish First master page (no footer on page 1)
+    doc.text.addElement(P(text="", stylename="FirstPageContentStyle"))
     doc.text.addElement(header_table)
 
+    doc.text.addElement(P(text=""))
     doc.text.addElement(P(text=""))
 
     # Second Logo (Centered)
@@ -731,7 +817,7 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
         doc.text.addElement(P(text=segment.strip(), stylename="BackgroundTextStyle"))
 
     # Third Page Content - Static Analysis
-    doc.text.addElement(P(text="Statische Analyse", stylename="HeadingWithBreakStyle"))
+    doc.text.addElement(P(text="Statische Analyse", stylename="HeadingPageBreakStyle"))
     doc.text.addElement(P(text=""))
 
     # Parse INI file and generate analysis
@@ -827,7 +913,7 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
         # Add new section: Statische Beinachsen- und Haltungsanalyse
         if statik_screenshots and len(statik_screenshots) >= 7:
             # Page break before new section
-            doc.text.addElement(P(text="Statische Beinachsen- und Haltungsanalyse", stylename="HeadingWithBreakStyle"))
+            doc.text.addElement(P(text="Statische Beinachsen- und Haltungsanalyse", stylename="HeadingPageBreakStyle"))
             doc.text.addElement(P(text=""))
 
             # Add 3 bullet points with XXX placeholder
@@ -901,7 +987,7 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
                         print(f"Error adding statik screenshot {screenshot_idx + 1}: {e}")
 
             # Page break before Statische Pedobarografie section
-            doc.text.addElement(P(text="Statische Pedobarografie", stylename="HeadingWithBreakStyle"))
+            doc.text.addElement(P(text="Statische Pedobarografie", stylename="HeadingPageBreakStyle"))
 
             # Add Screenshots 5, 6, 7 (16cm, 16cm, 8cm width, centered)
             screenshot_widths = [16.0, 16.0, 8.0]  # Widths for screenshots 5, 6, 7
@@ -936,7 +1022,7 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
         # Add new section: Dynamische Beckenanalyse
         if pelvic_drop_sentence:
             # Page break before new section
-            doc.text.addElement(P(text="Dynamische Beckenanalyse", stylename="HeadingWithBreakStyle"))
+            doc.text.addElement(P(text="Dynamische Beckenanalyse", stylename="HeadingPageBreakStyle"))
             doc.text.addElement(P(text=""))
 
             # Add bullet point with pelvic drop sentence
@@ -984,7 +1070,7 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
         if gehen_screenshots and len(gehen_screenshots) >= 2 and gehen_screenshots[1] and os.path.exists(gehen_screenshots[1]):
             try:
                 # Page break with heading
-                doc.text.addElement(P(text="Dynamische Wirbelsäulenanalyse", stylename="HeadingWithBreakStyle"))
+                doc.text.addElement(P(text="Dynamische Wirbelsäulenanalyse", stylename="HeadingPageBreakStyle"))
 
                 # Get screenshot dimensions
                 with PILImage.open(gehen_screenshots[1]) as img:
@@ -1016,7 +1102,7 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
         # Add new section: Ganganalyse
         if gehen_screenshots and len(gehen_screenshots) >= 6:
             # Page break with heading
-            doc.text.addElement(P(text="Ganganalyse", stylename="HeadingWithBreakStyle"))
+            doc.text.addElement(P(text="Ganganalyse", stylename="HeadingPageBreakStyle"))
             doc.text.addElement(P(text=""))
 
             # Add 4 bullet points with XXX placeholder
@@ -1088,7 +1174,7 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
         # Add new section: Dynamische Pedografie
         if gehen_screenshots and len(gehen_screenshots) >= 8:
             # Page break with heading
-            doc.text.addElement(P(text="Dynamische Pedografie", stylename="HeadingWithBreakStyle"))
+            doc.text.addElement(P(text="Dynamische Pedografie", stylename="HeadingPageBreakStyle"))
 
             # Add Screenshot 7 (index 6)
             if gehen_screenshots[6] and os.path.exists(gehen_screenshots[6]):
@@ -1149,7 +1235,7 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
         # Add new section: Kraftanalyse Vergleich rechts - links
         if kraft_screenshots and len(kraft_screenshots) >= 2:
             # Page break with heading
-            doc.text.addElement(P(text="Kraftanalyse Vergleich rechts - links", stylename="HeadingWithBreakStyle"))
+            doc.text.addElement(P(text="Kraftanalyse Vergleich rechts - links", stylename="HeadingPageBreakStyle"))
 
             # Add 1 empty line after heading
             doc.text.addElement(P(text=""))
@@ -1213,7 +1299,7 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
         # Add new section: Kraftanalyse Vergleich Antagonist - Agonist
         if kraft_screenshots and len(kraft_screenshots) >= 4:
             # Page break with heading
-            doc.text.addElement(P(text="Kraftanalyse Vergleich Antagonist - Agonist", stylename="HeadingWithBreakStyle"))
+            doc.text.addElement(P(text="Kraftanalyse Vergleich Antagonist - Agonist", stylename="HeadingPageBreakStyle"))
 
             # Add 1 empty line after heading
             doc.text.addElement(P(text=""))
@@ -1273,6 +1359,18 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
                         print(f"Kraft Screenshot 4 inserted: {frame_width_cm}cm x {frame_height_cm:.2f}cm")
                 except Exception as e:
                     print(f"Error adding kraft screenshot 4: {e}")
+
+        # Add new section: Therapieempfehlungen (last page)
+        doc.text.addElement(P(text="Therapieempfehlungen", stylename="HeadingPageBreakStyle"))
+        doc.text.addElement(P(text=""))
+
+        # Add 2 bullet points with XXX placeholder
+        therapie_bullet_list = List(stylename="BulletList")
+        for i in range(2):
+            bullet_item = ListItem()
+            bullet_item.addElement(P(text="XXX", stylename="BulletTextStyle"))
+            therapie_bullet_list.addElement(bullet_item)
+        doc.text.addElement(therapie_bullet_list)
 
     else:
         doc.text.addElement(P(text="Fehler beim Lesen der Messwerte aus der INI-Datei."))
@@ -1636,466 +1734,6 @@ class BeckenhochstandSelector:
         return self.beckenhochstand_side
 
 
-class CoordinateFinder:
-    def __init__(self, parent):
-        self.parent = parent
-        self.image = None
-        self.photo = None
-        self.clicks = []
-        self.canvas = None
-        self.top = None
-
-    def find_coordinates(self):
-        # Ask user to select folder
-        folder_path = filedialog.askdirectory(title="Select folder containing 4d_average.pdf")
-        if not folder_path:
-            messagebox.showinfo("Cancelled", "Folder selection was cancelled.")
-            return
-
-        # Look for 4d_average.pdf
-        pdf_path = os.path.join(folder_path, "4d_average.pdf")
-        if not os.path.exists(pdf_path):
-            messagebox.showerror("Error", f"Could not find 4d_average.pdf in {folder_path}")
-            return
-
-        self.find_coordinates_from_path(pdf_path)
-
-    def find_coordinates_from_path(self, pdf_path, page_num=1, screenshot_name="Screenshot"):
-        """Find coordinates from a specific page of a PDF
-
-        Args:
-            pdf_path: Path to the PDF file
-            page_num: Page number to extract (default: 1)
-            screenshot_name: Name to display in window title (default: "Screenshot")
-        """
-        try:
-            # Convert specific page of PDF to image at 150 DPI (for display on laptop)
-            print(f"Converting PDF page {page_num} to image...")
-            images = convert_from_path(pdf_path, dpi=150, first_page=page_num, last_page=page_num)
-            if not images:
-                messagebox.showerror("Error", f"Could not convert PDF page {page_num} to image")
-                return
-
-            self.image = images[0]
-            self.current_page = page_num
-            self.screenshot_name = screenshot_name
-            print(f"Image size: {self.image.size[0]}x{self.image.size[1]} pixels (at 150 DPI)")
-
-            # Create window to display image
-            self.top = tk.Toplevel(self.parent)
-            window_title = f"{screenshot_name} - Page {page_num} - Click Top-Left, then Bottom-Right"
-            self.top.title(window_title)
-            self.top.transient(self.parent)
-            self.top.grab_set()
-
-            # Scale image if too large for screen
-            max_width = 1200
-            max_height = 800
-            img_width, img_height = self.image.size
-
-            scale = 1.0
-            if img_width > max_width or img_height > max_height:
-                scale_w = max_width / img_width
-                scale_h = max_height / img_height
-                scale = min(scale_w, scale_h)
-                display_width = int(img_width * scale)
-                display_height = int(img_height * scale)
-                display_image = self.image.resize((display_width, display_height), PILImage.Resampling.LANCZOS)
-            else:
-                display_image = self.image
-                display_width = img_width
-                display_height = img_height
-
-            self.scale = scale
-            print(f"Display scale: {scale} (Display size: {display_width}x{display_height})")
-
-            # Create canvas with image
-            self.canvas = tk.Canvas(self.top, width=display_width, height=display_height)
-            self.canvas.pack()
-
-            # Convert PIL image to PhotoImage for display
-            self.photo = ImageTk.PhotoImage(display_image)
-            self.canvas.create_image(0, 0, anchor=tk.NW, image=self.photo)
-
-            # Add instructions
-            instruction_text = "Click 1: Top-Left corner, Click 2: Bottom-Right corner"
-            tk.Label(self.top, text=instruction_text, font=("Arial", 12, "bold")).pack(pady=5)
-
-            # Bind click event
-            self.canvas.bind("<Button-1>", self.on_click)
-
-        except Exception as e:
-            messagebox.showerror("Error", f"Error processing PDF: {e}")
-            import traceback
-            traceback.print_exc()
-
-    def wait_for_completion(self):
-        """Wait for the coordinate finder window to close"""
-        if self.top:
-            self.parent.wait_window(self.top)
-
-    def on_click(self, event):
-        # Get click coordinates (scaled to display)
-        x_display = event.x
-        y_display = event.y
-
-        # Convert to original image coordinates
-        x_original = int(x_display / self.scale)
-        y_original = int(y_display / self.scale)
-
-        # Store click
-        self.clicks.append((x_original, y_original))
-
-        # Draw marker on canvas
-        r = 5  # radius
-        self.canvas.create_oval(x_display-r, y_display-r, x_display+r, y_display+r,
-                                fill="red", outline="white", width=2)
-        self.canvas.create_text(x_display, y_display-15, text=f"Click {len(self.clicks)}",
-                                fill="red", font=("Arial", 10, "bold"))
-
-        print(f"Click {len(self.clicks)}: Display({x_display}, {y_display}) -> Original({x_original}, {y_original})")
-
-        # If we have 2 clicks, calculate crop coordinates
-        if len(self.clicks) == 2:
-            self.calculate_coordinates()
-
-    def calculate_coordinates(self):
-        x1, y1 = self.clicks[0]
-        x2, y2 = self.clicks[1]
-
-        # Ensure top-left and bottom-right
-        left = min(x1, x2)
-        top = min(y1, y2)
-        right = max(x1, x2)
-        bottom = max(y1, y2)
-
-        width = right - left
-        height = bottom - top
-
-        img_width, img_height = self.image.size
-
-        # Calculate as percentages
-        left_pct = (left / img_width) * 100
-        top_pct = (top / img_height) * 100
-        right_pct = (right / img_width) * 100
-        bottom_pct = (bottom / img_height) * 100
-
-        # Draw rectangle on canvas
-        x1_display = int(left * self.scale)
-        y1_display = int(top * self.scale)
-        x2_display = int(right * self.scale)
-        y2_display = int(bottom * self.scale)
-        self.canvas.create_rectangle(x1_display, y1_display, x2_display, y2_display,
-                                      outline="green", width=3)
-
-        # Store final coordinates for programmatic access
-        self.final_coordinates = {
-            'left_pct': left_pct,
-            'top_pct': top_pct,
-            'right_pct': right_pct,
-            'bottom_pct': bottom_pct,
-            'left': left,
-            'top': top,
-            'right': right,
-            'bottom': bottom,
-            'width': width,
-            'height': height
-        }
-
-        # Create result message
-        result = f"""
-CROP COORDINATES FOUND (at 150 DPI):
-=====================================
-Pixel coordinates (left, top, right, bottom):
-({left}, {top}, {right}, {bottom})
-
-Crop size: {width}x{height} pixels
-
-Percentage of image (for any DPI):
-Left: {left_pct:.2f}%
-Top: {top_pct:.2f}%
-Right: {right_pct:.2f}%
-Bottom: {bottom_pct:.2f}%
-
-For hardcoding, use these percentage values to calculate
-coordinates at any DPI (e.g., 300 DPI for high quality).
-"""
-
-        print("\n" + "="*50)
-        print(result)
-        print("="*50 + "\n")
-
-        messagebox.showinfo("Coordinates Found", result)
-
-        self.top.destroy()
-
-
-class StatikCoordinateFinder:
-    """Coordinate finder for all 7 screenshots from statik.pdf"""
-    def __init__(self, parent):
-        self.parent = parent
-        self.screenshots_config = [
-            {"name": "Screenshot 1", "page": 2, "description": "Page 2 - 16cm width"},
-            {"name": "Screenshot 2", "page": 5, "description": "Page 5 - 16cm width"},
-            {"name": "Screenshot 3", "page": 3, "description": "Page 3 - 16cm width"},
-            {"name": "Screenshot 4", "page": 4, "description": "Page 4 - 16cm width"},
-            {"name": "Screenshot 5", "page": 6, "description": "Page 6 - 16cm width"},
-            {"name": "Screenshot 6", "page": 6, "description": "Page 6 - 16cm width (different area)"},
-            {"name": "Screenshot 7", "page": 6, "description": "Page 6 - 8cm width (half size)"},
-        ]
-        self.current_screenshot_index = 0
-        self.all_coordinates = []
-
-    def find_all_coordinates(self):
-        """Start the coordinate finding process"""
-        # Ask user to select folder
-        folder_path = filedialog.askdirectory(title="Select folder containing statik.pdf")
-        if not folder_path:
-            messagebox.showinfo("Cancelled", "Folder selection was cancelled.")
-            return
-
-        # Look for statik.pdf
-        pdf_path = os.path.join(folder_path, "statik.pdf")
-        if not os.path.exists(pdf_path):
-            messagebox.showerror("Error", f"Could not find statik.pdf in {folder_path}")
-            return
-
-        self.pdf_path = pdf_path
-        self.process_next_screenshot()
-
-    def process_next_screenshot(self):
-        """Process the next screenshot in the sequence"""
-        if self.current_screenshot_index >= len(self.screenshots_config):
-            # All screenshots processed
-            self.show_all_results()
-            return
-
-        config = self.screenshots_config[self.current_screenshot_index]
-        print(f"\n{'='*60}")
-        print(f"Processing {config['name']}: {config['description']}")
-        print(f"{'='*60}")
-
-        # Create coordinate finder for this page
-        finder = CoordinateFinder(self.parent)
-        finder.find_coordinates_from_path(self.pdf_path, config['page'], config['name'])
-        finder.wait_for_completion()
-
-        # Store the coordinates if they were found
-        if hasattr(finder, 'final_coordinates'):
-            self.all_coordinates.append({
-                'screenshot': config['name'],
-                'page': config['page'],
-                'coordinates': finder.final_coordinates
-            })
-
-        # Move to next screenshot
-        self.current_screenshot_index += 1
-        self.process_next_screenshot()
-
-    def show_all_results(self):
-        """Show all collected coordinates"""
-        print("\n" + "="*70)
-        print("ALL STATIK.PDF COORDINATES")
-        print("="*70)
-
-        result_text = "ALL STATIK.PDF COORDINATES:\n" + "="*70 + "\n\n"
-
-        for coord_data in self.all_coordinates:
-            coords = coord_data['coordinates']
-            text = f"{coord_data['screenshot']} (Page {coord_data['page']}):\n"
-            text += f"  Left: {coords['left_pct']:.2f}%\n"
-            text += f"  Top: {coords['top_pct']:.2f}%\n"
-            text += f"  Right: {coords['right_pct']:.2f}%\n"
-            text += f"  Bottom: {coords['bottom_pct']:.2f}%\n\n"
-
-            print(text)
-            result_text += text
-
-        messagebox.showinfo("All Coordinates Found", result_text)
-
-
-class GehenCoordinateFinder:
-    """Coordinate finder for new gehen.pdf screenshots (pages 3, 5, 4, 6, 8, 7)"""
-    def __init__(self, parent):
-        self.parent = parent
-        self.screenshots_config = [
-            {"name": "Ganganalyse Screenshot 1", "page": 3, "description": "Page 3 - 16cm width (Ganganalyse)"},
-            {"name": "Ganganalyse Screenshot 2", "page": 5, "description": "Page 5 - 16cm width (Ganganalyse)"},
-            {"name": "Ganganalyse Screenshot 3", "page": 4, "description": "Page 4 - 16cm width (Ganganalyse)"},
-            {"name": "Ganganalyse Screenshot 4", "page": 6, "description": "Page 6 - 16cm width (Ganganalyse)"},
-            {"name": "Dynamische Pedografie Screenshot 1", "page": 8, "description": "Page 8 - 16cm width (Dynamische Pedografie)"},
-            {"name": "Dynamische Pedografie Screenshot 2", "page": 7, "description": "Page 7 - 16cm width (Dynamische Pedografie)"},
-        ]
-        self.current_screenshot_index = 0
-        self.all_coordinates = []
-
-    def find_all_coordinates(self):
-        """Start the coordinate finding process"""
-        # Ask user to select folder
-        folder_path = filedialog.askdirectory(title="Select folder containing gehen.pdf")
-        if not folder_path:
-            messagebox.showinfo("Cancelled", "Folder selection was cancelled.")
-            return
-
-        # Look for gehen.pdf
-        pdf_path = os.path.join(folder_path, "gehen.pdf")
-        if not os.path.exists(pdf_path):
-            messagebox.showerror("Error", f"Could not find gehen.pdf in {folder_path}")
-            return
-
-        self.pdf_path = pdf_path
-        self.process_next_screenshot()
-
-    def process_next_screenshot(self):
-        """Process the next screenshot in the sequence"""
-        if self.current_screenshot_index >= len(self.screenshots_config):
-            # All screenshots processed
-            self.show_all_results()
-            return
-
-        config = self.screenshots_config[self.current_screenshot_index]
-        print(f"\n{'='*60}")
-        print(f"Processing {config['name']}: {config['description']}")
-        print(f"{'='*60}")
-
-        # Create coordinate finder for this page
-        finder = CoordinateFinder(self.parent)
-        finder.find_coordinates_from_path(self.pdf_path, config['page'], config['name'])
-        finder.wait_for_completion()
-
-        # Store the coordinates if they were found
-        if hasattr(finder, 'final_coordinates'):
-            self.all_coordinates.append({
-                'screenshot': config['name'],
-                'page': config['page'],
-                'coordinates': finder.final_coordinates
-            })
-
-        # Move to next screenshot
-        self.current_screenshot_index += 1
-        self.process_next_screenshot()
-
-    def show_all_results(self):
-        """Show all collected coordinates"""
-        print("\n" + "="*70)
-        print("NEW GEHEN.PDF COORDINATES (Pages 3, 5, 4, 6, 8, 7)")
-        print("="*70)
-
-        result_text = "NEW GEHEN.PDF COORDINATES (Pages 3, 5, 4, 6, 8, 7):\n" + "="*70 + "\n\n"
-
-        for coord_data in self.all_coordinates:
-            coords = coord_data['coordinates']
-            text = f"{coord_data['screenshot']} (Page {coord_data['page']}):\n"
-            text += f"  Left: {coords['left_pct']:.2f}%\n"
-            text += f"  Top: {coords['top_pct']:.2f}%\n"
-            text += f"  Right: {coords['right_pct']:.2f}%\n"
-            text += f"  Bottom: {coords['bottom_pct']:.2f}%\n\n"
-
-            print(text)
-            result_text += text
-
-        messagebox.showinfo("All Coordinates Found", result_text)
-
-
-class KraftCoordinateFinder:
-    """Coordinate finder for kraft.pdf screenshots (4 screenshots from pages 1 and 2)"""
-    def __init__(self, parent):
-        self.parent = parent
-        self.screenshots_config = [
-            {"name": "Kraftanalyse rechts-links Screenshot 1", "page": 1, "description": "Page 1 - 16cm width (centered)"},
-            {"name": "Kraftanalyse rechts-links Screenshot 2", "page": 1, "description": "Page 1 - 16cm width (bottom)"},
-            {"name": "Kraftanalyse Antagonist-Agonist Screenshot 1", "page": 2, "description": "Page 2 - 16cm width (centered)"},
-            {"name": "Kraftanalyse Antagonist-Agonist Screenshot 2", "page": 2, "description": "Page 2 - 16cm width (bottom)"},
-        ]
-        self.current_screenshot_index = 0
-        self.all_coordinates = []
-
-    def find_all_coordinates(self):
-        """Start the coordinate finding process"""
-        # Ask user to select folder
-        folder_path = filedialog.askdirectory(title="Select folder containing kraft.pdf")
-        if not folder_path:
-            messagebox.showinfo("Cancelled", "Folder selection was cancelled.")
-            return
-
-        # Look for kraft.pdf
-        pdf_path = os.path.join(folder_path, "kraft.pdf")
-        if not os.path.exists(pdf_path):
-            messagebox.showerror("Error", f"Could not find kraft.pdf in {folder_path}")
-            return
-
-        self.pdf_path = pdf_path
-        self.process_next_screenshot()
-
-    def process_next_screenshot(self):
-        """Process the next screenshot in the sequence"""
-        if self.current_screenshot_index >= len(self.screenshots_config):
-            # All screenshots processed
-            self.show_all_results()
-            return
-
-        config = self.screenshots_config[self.current_screenshot_index]
-        print(f"\n{'='*60}")
-        print(f"Processing {config['name']}: {config['description']}")
-        print(f"{'='*60}")
-
-        # Create coordinate finder for this page
-        finder = CoordinateFinder(self.parent)
-        finder.find_coordinates_from_path(self.pdf_path, config['page'], config['name'])
-        finder.wait_for_completion()
-
-        # Store the coordinates if they were found
-        if hasattr(finder, 'final_coordinates'):
-            self.all_coordinates.append({
-                'screenshot': config['name'],
-                'page': config['page'],
-                'coordinates': finder.final_coordinates
-            })
-
-        # Move to next screenshot
-        self.current_screenshot_index += 1
-        self.process_next_screenshot()
-
-    def show_all_results(self):
-        """Show all collected coordinates"""
-        print("\n" + "="*70)
-        print("KRAFT.PDF COORDINATES")
-        print("="*70)
-
-        result_text = "KRAFT.PDF COORDINATES:\n" + "="*70 + "\n\n"
-
-        for coord_data in self.all_coordinates:
-            coords = coord_data['coordinates']
-            text = f"{coord_data['screenshot']} (Page {coord_data['page']}):\n"
-            text += f"  Left: {coords['left_pct']:.2f}%\n"
-            text += f"  Top: {coords['top_pct']:.2f}%\n"
-            text += f"  Right: {coords['right_pct']:.2f}%\n"
-            text += f"  Bottom: {coords['bottom_pct']:.2f}%\n\n"
-
-            print(text)
-            result_text += text
-
-        messagebox.showinfo("All Coordinates Found", result_text)
-
-
-def find_statik_coordinates():
-    """Helper function to find all statik.pdf coordinates"""
-    finder = StatikCoordinateFinder(root)
-    finder.find_all_coordinates()
-
-
-def find_gehen_coordinates():
-    """Helper function to find all gehen.pdf coordinates"""
-    finder = GehenCoordinateFinder(root)
-    finder.find_all_coordinates()
-
-
-def find_kraft_coordinates():
-    """Helper function to find all kraft.pdf coordinates"""
-    finder = KraftCoordinateFinder(root)
-    finder.find_all_coordinates()
-
-
 def generate_report():
     gender_selector = GenderSelector(root)
     gender = gender_selector.get_gender()
@@ -2317,9 +1955,6 @@ root = tk.Tk()
 root.title("Report Generator")
 
 tk.Label(root, text="Generate a new report.").pack(pady=10)
-tk.Button(root, text="Generate Report", command=generate_report).pack(pady=10)
-tk.Button(root, text="Find Statik.pdf Coordinates", command=find_statik_coordinates).pack(pady=10)
-tk.Button(root, text="Find Gehen.pdf Coordinates", command=find_gehen_coordinates).pack(pady=10)
-tk.Button(root, text="Find Kraft.pdf Coordinates", command=find_kraft_coordinates).pack(pady=10)
+tk.Button(root, text="Create Report", command=generate_report).pack(pady=10)
 
 root.mainloop()
