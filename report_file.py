@@ -119,6 +119,60 @@ def crop_statik_screenshots(pdf_path):
         return []
 
 
+def crop_kraft_screenshots(pdf_path):
+    """
+    Crop 4 screenshots from kraft.pdf using hardcoded coordinates.
+    Returns list of paths to temporary cropped image files.
+    """
+    try:
+        # Hardcoded crop coordinates for 4 screenshots
+        screenshots_config = [
+            {"page": 1, "left": 0.85, "top": 19.98, "right": 48.43, "bottom": 78.97},   # Screenshot 1 (Kraftanalyse rechts-links - centered)
+            {"page": 1, "left": 8.09, "top": 81.47, "right": 82.68, "bottom": 89.36},   # Screenshot 2 (Kraftanalyse rechts-links - bottom)
+            {"page": 2, "left": 2.28, "top": 18.45, "right": 48.95, "bottom": 76.87},   # Screenshot 3 (Kraftanalyse Antagonist-Agonist - centered)
+            {"page": 2, "left": 11.00, "top": 80.74, "right": 78.01, "bottom": 89.20},  # Screenshot 4 (Kraftanalyse Antagonist-Agonist - bottom)
+        ]
+
+        screenshot_paths = []
+
+        for i, config in enumerate(screenshots_config, 1):
+            print(f"\nProcessing Kraft Screenshot {i} from page {config['page']}...")
+
+            # Convert specific page at 300 DPI for high quality
+            images = convert_from_path(pdf_path, dpi=300, first_page=config['page'], last_page=config['page'])
+            if not images:
+                print(f"Warning: Could not convert page {config['page']}")
+                screenshot_paths.append(None)
+                continue
+
+            image = images[0]
+            img_width, img_height = image.size
+
+            # Calculate crop coordinates from percentages
+            left = int((config['left'] / 100) * img_width)
+            top = int((config['top'] / 100) * img_height)
+            right = int((config['right'] / 100) * img_width)
+            bottom = int((config['bottom'] / 100) * img_height)
+
+            # Crop the image
+            cropped_image = image.crop((left, top, right, bottom))
+            crop_width, crop_height = cropped_image.size
+            print(f"Kraft Screenshot {i} cropped: {crop_width}x{crop_height} pixels")
+
+            # Save to temporary file
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+            cropped_image.save(temp_file.name, 'PNG', quality=95)
+            screenshot_paths.append(temp_file.name)
+
+        return screenshot_paths
+
+    except Exception as e:
+        print(f"Error cropping kraft screenshots: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+
 def crop_gehen_screenshots(pdf_path):
     """
     Crop 8 screenshots from gehen.pdf using hardcoded coordinates.
@@ -491,7 +545,7 @@ def generate_marker_sentence(markers):
 
 def create_report(patient_full_title, patient_name, patient_dob, report_creator, odt_path, gender, ini_path,
                   sim_performed, isg_right, isg_left, markers, logo_path=None, second_logo_path=None,
-                  screenshot_path=None, statik_screenshots=None, pelvic_drop_sentence=None, gehen_screenshots=None):
+                  screenshot_path=None, statik_screenshots=None, pelvic_drop_sentence=None, gehen_screenshots=None, kraft_screenshots=None):
     doc = OpenDocumentText()
 
     # Define styles for table columns (3 columns: logo, text1, text2)
@@ -1091,6 +1145,134 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
                         print(f"Gehen Screenshot 8 inserted: {frame_width_cm}cm x {frame_height_cm:.2f}cm")
                 except Exception as e:
                     print(f"Error adding gehen screenshot 8: {e}")
+
+        # Add new section: Kraftanalyse Vergleich rechts - links
+        if kraft_screenshots and len(kraft_screenshots) >= 2:
+            # Page break with heading
+            doc.text.addElement(P(text="Kraftanalyse Vergleich rechts - links", stylename="HeadingWithBreakStyle"))
+
+            # Add 1 empty line after heading
+            doc.text.addElement(P(text=""))
+
+            # Add Screenshot 1 (index 0) - centered horizontally and vertically
+            if kraft_screenshots[0] and os.path.exists(kraft_screenshots[0]):
+                try:
+                    with PILImage.open(kraft_screenshots[0]) as img:
+                        img_width_px, img_height_px = img.size
+
+                    frame_width_cm = 16.0
+                    aspect_ratio = img_height_px / img_width_px if img_width_px > 0 else 1
+                    frame_height_cm = frame_width_cm * aspect_ratio
+
+                    centered_p = P(stylename="CenterParagraph")
+                    frame = Frame(
+                        name="KraftScreenshot1",
+                        width=f"{frame_width_cm}cm",
+                        height=f"{frame_height_cm}cm",
+                        anchortype="paragraph"
+                    )
+                    href = doc.addPicture(kraft_screenshots[0])
+                    if href:
+                        frame.addElement(Image(href=href))
+                        centered_p.addElement(frame)
+                        doc.text.addElement(centered_p)
+                        print(f"Kraft Screenshot 1 inserted: {frame_width_cm}cm x {frame_height_cm:.2f}cm")
+                except Exception as e:
+                    print(f"Error adding kraft screenshot 1: {e}")
+
+            # Add spacing to push screenshot 2 to the bottom
+            for _ in range(10):
+                doc.text.addElement(P(text=""))
+
+            # Add Screenshot 2 (index 1) - at the bottom
+            if kraft_screenshots[1] and os.path.exists(kraft_screenshots[1]):
+                try:
+                    with PILImage.open(kraft_screenshots[1]) as img:
+                        img_width_px, img_height_px = img.size
+
+                    frame_width_cm = 16.0
+                    aspect_ratio = img_height_px / img_width_px if img_width_px > 0 else 1
+                    frame_height_cm = frame_width_cm * aspect_ratio
+
+                    centered_p = P(stylename="CenterParagraph")
+                    frame = Frame(
+                        name="KraftScreenshot2",
+                        width=f"{frame_width_cm}cm",
+                        height=f"{frame_height_cm}cm",
+                        anchortype="paragraph"
+                    )
+                    href = doc.addPicture(kraft_screenshots[1])
+                    if href:
+                        frame.addElement(Image(href=href))
+                        centered_p.addElement(frame)
+                        doc.text.addElement(centered_p)
+                        print(f"Kraft Screenshot 2 inserted: {frame_width_cm}cm x {frame_height_cm:.2f}cm")
+                except Exception as e:
+                    print(f"Error adding kraft screenshot 2: {e}")
+
+        # Add new section: Kraftanalyse Vergleich Antagonist - Agonist
+        if kraft_screenshots and len(kraft_screenshots) >= 4:
+            # Page break with heading
+            doc.text.addElement(P(text="Kraftanalyse Vergleich Antagonist - Agonist", stylename="HeadingWithBreakStyle"))
+
+            # Add 1 empty line after heading
+            doc.text.addElement(P(text=""))
+
+            # Add Screenshot 3 (index 2) - centered horizontally and vertically
+            if kraft_screenshots[2] and os.path.exists(kraft_screenshots[2]):
+                try:
+                    with PILImage.open(kraft_screenshots[2]) as img:
+                        img_width_px, img_height_px = img.size
+
+                    frame_width_cm = 16.0
+                    aspect_ratio = img_height_px / img_width_px if img_width_px > 0 else 1
+                    frame_height_cm = frame_width_cm * aspect_ratio
+
+                    centered_p = P(stylename="CenterParagraph")
+                    frame = Frame(
+                        name="KraftScreenshot3",
+                        width=f"{frame_width_cm}cm",
+                        height=f"{frame_height_cm}cm",
+                        anchortype="paragraph"
+                    )
+                    href = doc.addPicture(kraft_screenshots[2])
+                    if href:
+                        frame.addElement(Image(href=href))
+                        centered_p.addElement(frame)
+                        doc.text.addElement(centered_p)
+                        print(f"Kraft Screenshot 3 inserted: {frame_width_cm}cm x {frame_height_cm:.2f}cm")
+                except Exception as e:
+                    print(f"Error adding kraft screenshot 3: {e}")
+
+            # Add spacing to push screenshot 4 to the bottom
+            for _ in range(10):
+                doc.text.addElement(P(text=""))
+
+            # Add Screenshot 4 (index 3) - at the bottom
+            if kraft_screenshots[3] and os.path.exists(kraft_screenshots[3]):
+                try:
+                    with PILImage.open(kraft_screenshots[3]) as img:
+                        img_width_px, img_height_px = img.size
+
+                    frame_width_cm = 16.0
+                    aspect_ratio = img_height_px / img_width_px if img_width_px > 0 else 1
+                    frame_height_cm = frame_width_cm * aspect_ratio
+
+                    centered_p = P(stylename="CenterParagraph")
+                    frame = Frame(
+                        name="KraftScreenshot4",
+                        width=f"{frame_width_cm}cm",
+                        height=f"{frame_height_cm}cm",
+                        anchortype="paragraph"
+                    )
+                    href = doc.addPicture(kraft_screenshots[3])
+                    if href:
+                        frame.addElement(Image(href=href))
+                        centered_p.addElement(frame)
+                        doc.text.addElement(centered_p)
+                        print(f"Kraft Screenshot 4 inserted: {frame_width_cm}cm x {frame_height_cm:.2f}cm")
+                except Exception as e:
+                    print(f"Error adding kraft screenshot 4: {e}")
 
     else:
         doc.text.addElement(P(text="Fehler beim Lesen der Messwerte aus der INI-Datei."))
@@ -1815,6 +1997,87 @@ class GehenCoordinateFinder:
         messagebox.showinfo("All Coordinates Found", result_text)
 
 
+class KraftCoordinateFinder:
+    """Coordinate finder for kraft.pdf screenshots (4 screenshots from pages 1 and 2)"""
+    def __init__(self, parent):
+        self.parent = parent
+        self.screenshots_config = [
+            {"name": "Kraftanalyse rechts-links Screenshot 1", "page": 1, "description": "Page 1 - 16cm width (centered)"},
+            {"name": "Kraftanalyse rechts-links Screenshot 2", "page": 1, "description": "Page 1 - 16cm width (bottom)"},
+            {"name": "Kraftanalyse Antagonist-Agonist Screenshot 1", "page": 2, "description": "Page 2 - 16cm width (centered)"},
+            {"name": "Kraftanalyse Antagonist-Agonist Screenshot 2", "page": 2, "description": "Page 2 - 16cm width (bottom)"},
+        ]
+        self.current_screenshot_index = 0
+        self.all_coordinates = []
+
+    def find_all_coordinates(self):
+        """Start the coordinate finding process"""
+        # Ask user to select folder
+        folder_path = filedialog.askdirectory(title="Select folder containing kraft.pdf")
+        if not folder_path:
+            messagebox.showinfo("Cancelled", "Folder selection was cancelled.")
+            return
+
+        # Look for kraft.pdf
+        pdf_path = os.path.join(folder_path, "kraft.pdf")
+        if not os.path.exists(pdf_path):
+            messagebox.showerror("Error", f"Could not find kraft.pdf in {folder_path}")
+            return
+
+        self.pdf_path = pdf_path
+        self.process_next_screenshot()
+
+    def process_next_screenshot(self):
+        """Process the next screenshot in the sequence"""
+        if self.current_screenshot_index >= len(self.screenshots_config):
+            # All screenshots processed
+            self.show_all_results()
+            return
+
+        config = self.screenshots_config[self.current_screenshot_index]
+        print(f"\n{'='*60}")
+        print(f"Processing {config['name']}: {config['description']}")
+        print(f"{'='*60}")
+
+        # Create coordinate finder for this page
+        finder = CoordinateFinder(self.parent)
+        finder.find_coordinates_from_path(self.pdf_path, config['page'], config['name'])
+        finder.wait_for_completion()
+
+        # Store the coordinates if they were found
+        if hasattr(finder, 'final_coordinates'):
+            self.all_coordinates.append({
+                'screenshot': config['name'],
+                'page': config['page'],
+                'coordinates': finder.final_coordinates
+            })
+
+        # Move to next screenshot
+        self.current_screenshot_index += 1
+        self.process_next_screenshot()
+
+    def show_all_results(self):
+        """Show all collected coordinates"""
+        print("\n" + "="*70)
+        print("KRAFT.PDF COORDINATES")
+        print("="*70)
+
+        result_text = "KRAFT.PDF COORDINATES:\n" + "="*70 + "\n\n"
+
+        for coord_data in self.all_coordinates:
+            coords = coord_data['coordinates']
+            text = f"{coord_data['screenshot']} (Page {coord_data['page']}):\n"
+            text += f"  Left: {coords['left_pct']:.2f}%\n"
+            text += f"  Top: {coords['top_pct']:.2f}%\n"
+            text += f"  Right: {coords['right_pct']:.2f}%\n"
+            text += f"  Bottom: {coords['bottom_pct']:.2f}%\n\n"
+
+            print(text)
+            result_text += text
+
+        messagebox.showinfo("All Coordinates Found", result_text)
+
+
 def find_statik_coordinates():
     """Helper function to find all statik.pdf coordinates"""
     finder = StatikCoordinateFinder(root)
@@ -1824,6 +2087,12 @@ def find_statik_coordinates():
 def find_gehen_coordinates():
     """Helper function to find all gehen.pdf coordinates"""
     finder = GehenCoordinateFinder(root)
+    finder.find_all_coordinates()
+
+
+def find_kraft_coordinates():
+    """Helper function to find all kraft.pdf coordinates"""
+    finder = KraftCoordinateFinder(root)
     finder.find_all_coordinates()
 
 
@@ -1917,6 +2186,17 @@ def generate_report():
     else:
         print("Warning: gehen.pdf not found in folder")
 
+    # Auto-find and crop screenshots from kraft.pdf
+    kraft_pdf_path = os.path.join(folder_path, "kraft.pdf")
+    kraft_screenshots = []
+    if os.path.exists(kraft_pdf_path):
+        print(f"Found kraft.pdf: {kraft_pdf_path}")
+        kraft_screenshots = crop_kraft_screenshots(kraft_pdf_path)
+        if not kraft_screenshots or len(kraft_screenshots) < 4:
+            print("Warning: Failed to crop all kraft screenshots")
+    else:
+        print("Warning: kraft.pdf not found in folder")
+
     # Ask for SIM measurement
     sim_selector = SIMMeasurementSelector(root)
     sim_performed = sim_selector.get_sim_status()
@@ -1991,7 +2271,7 @@ def generate_report():
     try:
         create_report(patient_full_title, patient_name, patient_dob, report_creator, odt_path, gender, ini_path,
                       sim_performed, isg_right, isg_left, markers, logo_path, second_logo_path,
-                      screenshot_path, statik_screenshots, pelvic_drop_sentence, gehen_screenshots)
+                      screenshot_path, statik_screenshots, pelvic_drop_sentence, gehen_screenshots, kraft_screenshots)
         messagebox.showinfo("Success", f"Successfully created {odt_path}")
 
         # Clean up temporary screenshot files
@@ -2019,6 +2299,15 @@ def generate_report():
                     print(f"Cleaned up gehen screenshot {i}: {screenshot_file}")
                 except:
                     pass
+
+        # Clean up kraft screenshot files
+        for i, screenshot_file in enumerate(kraft_screenshots, 1):
+            if screenshot_file and os.path.exists(screenshot_file):
+                try:
+                    os.remove(screenshot_file)
+                    print(f"Cleaned up kraft screenshot {i}: {screenshot_file}")
+                except:
+                    pass
     except Exception as e:
         messagebox.showerror("Error", f"An error occurred: {e}")
 
@@ -2031,5 +2320,6 @@ tk.Label(root, text="Generate a new report.").pack(pady=10)
 tk.Button(root, text="Generate Report", command=generate_report).pack(pady=10)
 tk.Button(root, text="Find Statik.pdf Coordinates", command=find_statik_coordinates).pack(pady=10)
 tk.Button(root, text="Find Gehen.pdf Coordinates", command=find_gehen_coordinates).pack(pady=10)
+tk.Button(root, text="Find Kraft.pdf Coordinates", command=find_kraft_coordinates).pack(pady=10)
 
 root.mainloop()
