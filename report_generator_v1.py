@@ -186,7 +186,7 @@ def crop_statik_screenshots(pdf_path):
     try:
         # Hardcoded crop coordinates for all 7 screenshots
         screenshots_config = [
-            {"page": 2, "left": 12.59, "top": 29.09, "right": 68.49, "bottom": 80.10},  # Screenshot 1
+            {"page": 2, "left": 13.73, "top": 27.32, "right": 70.26, "bottom": 82.19},  # Screenshot 1
             {"page": 5, "left": 11.97, "top": 28.12, "right": 70.31, "bottom": 84.85},  # Screenshot 2
             {"page": 3, "left": 12.76, "top": 31.59, "right": 67.12, "bottom": 81.95},  # Screenshot 3
             {"page": 4, "left": 13.50, "top": 32.72, "right": 66.55, "bottom": 83.00},  # Screenshot 4
@@ -259,6 +259,23 @@ def crop_kraft_screenshots(pdf_path, strength_test_type="Torso + legs"):
                 {"page": 2, "left": 1.14, "top": 20.47, "right": 48.43, "bottom": 64.22},   # Screenshot 3 (antagonist - main)
                 {"page": 2, "left": 11.00, "top": 80.74, "right": 78.01, "bottom": 89.20},  # Screenshot 4 (antagonist - bottom flat)
             ]
+        elif strength_test_type == "Legs + shoulders":
+            # 4 screenshots: main1, flat1, main2, flat2 (standard two-page layout)
+            screenshots_config = [
+                {"page": 1, "left": 1.11, "top": 21.11, "right": 48.83, "bottom": 78.97},   # Screenshot 1 (rechts-links - main)
+                {"page": 1, "left": 8.09, "top": 81.47, "right": 82.68, "bottom": 89.36},   # Screenshot 2 (rechts-links - bottom flat)
+                {"page": 2, "left": 1.65, "top": 18.37, "right": 49.46, "bottom": 55.92},   # Screenshot 3 (antagonist - main)
+                {"page": 2, "left": 11.00, "top": 80.74, "right": 78.01, "bottom": 89.20},  # Screenshot 4 (antagonist - bottom flat)
+            ]
+        elif strength_test_type == "Legs":
+            # 4 screenshots: main1 (smaller), flat1, main2 (smaller), flat2
+            # Smaller main screenshots so both sections fit on one page
+            screenshots_config = [
+                {"page": 1, "left": 0.68, "top": 20.87, "right": 49.46, "bottom": 57.45},   # Screenshot 1 (rechts-links - main)
+                {"page": 1, "left": 8.09, "top": 81.47, "right": 82.68, "bottom": 89.36},   # Screenshot 2 (rechts-links - bottom flat)
+                {"page": 2, "left": 1.77, "top": 19.10, "right": 49.00, "bottom": 42.47},   # Screenshot 3 (antagonist - main)
+                {"page": 2, "left": 11.00, "top": 80.74, "right": 78.01, "bottom": 89.20},  # Screenshot 4 (antagonist - bottom flat)
+            ]
         else:
             # Default: Torso + legs - 4 screenshots (original coordinates)
             screenshots_config = [
@@ -320,10 +337,10 @@ def crop_laufen_screenshots(hp_pdf_path, ios_pdf_path):
         screenshots_config = [
             {"pdf": hp_pdf_path, "page": 1, "left": 33.45, "top": 15.71, "right": 92.08, "bottom": 90.73},  # Screenshot 1
             {"pdf": hp_pdf_path, "page": 2, "left": 0.40, "top": 16.36, "right": 37.09, "bottom": 84.93},   # Screenshot 2
-            {"pdf": hp_pdf_path, "page": 3, "left": 12.19, "top": 17.57, "right": 93.68, "bottom": 81.71},  # Screenshot 3
-            {"pdf": hp_pdf_path, "page": 6, "left": 12.54, "top": 16.44, "right": 93.16, "bottom": 85.74},  # Screenshot 4
-            {"pdf": hp_pdf_path, "page": 4, "left": 1.77, "top": 17.49, "right": 93.05, "bottom": 87.11},   # Screenshot 5
-            {"pdf": hp_pdf_path, "page": 5, "left": 1.94, "top": 22.72, "right": 93.50, "bottom": 94.92},   # Screenshot 6
+            {"pdf": hp_pdf_path, "page": 3, "left": 14.02, "top": 18.69, "right": 92.14, "bottom": 77.20},  # Screenshot 3
+            {"pdf": hp_pdf_path, "page": 6, "left": 11.97, "top": 18.45, "right": 91.97, "bottom": 81.55},  # Screenshot 4
+            {"pdf": hp_pdf_path, "page": 4, "left": 1.48, "top": 15.47, "right": 92.93, "bottom": 87.11},   # Screenshot 5
+            {"pdf": hp_pdf_path, "page": 5, "left": 0.85, "top": 14.59, "right": 93.73, "bottom": 86.30},   # Screenshot 6
             {"pdf": hp_pdf_path, "page": 8, "left": 3.25, "top": 20.31, "right": 93.39, "bottom": 87.11},   # Screenshot 7
             {"pdf": ios_pdf_path, "page": 1, "left": 1.99, "top": 18.86, "right": 93.68, "bottom": 87.35},  # Screenshot 8
         ]
@@ -431,7 +448,7 @@ def crop_gehen_screenshots(pdf_path):
         screenshots_config = [
             {"page": 1, "left": 33.05, "top": 16.20, "right": 90.48, "bottom": 86.87},  # Screenshot 1 (Dynamische Beckenanalyse)
             {"page": 2, "left": 0.68, "top": 14.99, "right": 46.55, "bottom": 87.00},   # Screenshot 2 (Dynamische Wirbelsäulenanalyse)
-            {"page": 3, "left": 16.87, "top": 18.05, "right": 91.17, "bottom": 73.25},  # Screenshot 3 (Ganganalyse - page 3)
+            {"page": 3, "left": 15.27, "top": 17.49, "right": 92.72, "bottom": 76.87},  # Screenshot 3 (Ganganalyse - page 3)
             {"page": 5, "left": 13.73, "top": 18.69, "right": 92.08, "bottom": 80.82},  # Screenshot 4 (Ganganalyse - page 5)
             {"page": 4, "left": 2.62, "top": 17.57, "right": 92.88, "bottom": 87.11},   # Screenshot 5 (Ganganalyse - page 4)
             {"page": 6, "left": 1.82, "top": 22.24, "right": 93.56, "bottom": 96.37},   # Screenshot 6 (Ganganalyse - page 6)
@@ -1037,6 +1054,7 @@ def create_report(patient_full_title, patient_name, patient_dob, report_creator,
     # Define bullet list style
     bullet_list_style = ListStyle(name="BulletList")
     bullet_level = ListLevelStyleBullet(level=1, stylename="BulletList", bulletchar="•")
+    bullet_level.addElement(ListLevelProperties(spacebefore="0.5cm", minlabelwidth="0.5cm"))
     bullet_list_style.addElement(bullet_level)
     doc.styles.addElement(bullet_list_style)
 
@@ -1409,7 +1427,6 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
         if statik_screenshots and len(statik_screenshots) >= 7:
             # Page break before new section
             doc.text.addElement(P(text="Statische Beinachsen- und Haltungsanalyse", stylename="HeadingPageBreakStyle"))
-            doc.text.addElement(P(text=""))
 
             # Add bullet points from user input
             if beinachsen_texts and len(beinachsen_texts) > 0:
@@ -1419,7 +1436,6 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
                     bullet_item.addElement(P(text=text, stylename="BulletTextStyle"))
                     statik_bullet_list.addElement(bullet_item)
                 doc.text.addElement(statik_bullet_list)
-            doc.text.addElement(P(text=""))
 
             # Add Screenshots 1 and 2 (16cm width, centered) - at the bottom
             for screenshot_idx in [0, 1]:  # Screenshots 1 and 2
@@ -1983,7 +1999,13 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
 
             # Antagonist-Agonist page
             if kraft_screenshots and len(kraft_screenshots) >= 4:
-                doc.text.addElement(P(text="Kraftanalyse Vergleich Antagonist - Agonist", stylename="HeadingPageBreakStyle"))
+                if strength_test_type == "Legs":
+                    # Smaller screenshots fit on the same page - no page break, just a bit of space
+                    doc.text.addElement(P(text=""))
+                    doc.text.addElement(P(text=""))
+                    doc.text.addElement(P(text="Kraftanalyse Vergleich Antagonist - Agonist", stylename="HeadingStyle"))
+                else:
+                    doc.text.addElement(P(text="Kraftanalyse Vergleich Antagonist - Agonist", stylename="HeadingPageBreakStyle"))
                 doc.text.addElement(P(text=""))
 
                 # Main screenshot (index 2)
@@ -2638,7 +2660,7 @@ class StrengthTestTypeSelector:
         options_frame = tk.Frame(main_frame, bg="#F5F5F5")
         options_frame.pack(pady=10)
 
-        for text in ["Torso + legs", "Torso + legs + shoulders", "Torso + shoulders"]:
+        for text in ["Torso + legs", "Torso + legs + shoulders", "Torso + shoulders", "Legs + shoulders", "Legs"]:
             tk.Radiobutton(options_frame, text=text, variable=self.type_var, value=text,
                           font=("Helvetica", 11), bg="#F5F5F5", fg="#333333",
                           activebackground="#F5F5F5", selectcolor="#FFFFFF").pack(anchor="w", padx=20, pady=5)
@@ -4076,11 +4098,10 @@ def generate_report():
             else:
                 last_name = patient_name.strip()
 
-            # Generate filename: "motionlab report <last name> <month> <year>"
+            # Generate filename: "<YYYY-MM-DD> Motionlab Report <last name>"
             current_date = datetime.now()
-            month = current_date.strftime("%B").lower()
-            year = current_date.strftime("%Y")
-            base_filename = f"motionlab report {last_name} {month} {year}"
+            date_iso = current_date.strftime("%Y-%m-%d")
+            base_filename = f"{date_iso} Motionlab Report {last_name}"
 
             if export_format == "ODT":
                 save_path = os.path.join(folder_path, f"{base_filename}.odt")
@@ -4510,7 +4531,7 @@ def show_release_notes():
     # Title
     title_label = tk.Label(
         dialog,
-        text="Release Notes - Version 1.4",
+        text="Release Notes - Version 1.5",
         font=("Helvetica", 14, "bold"),
         fg=COLOR_TURQUOISE,
         bg=COLOR_BG
@@ -4556,6 +4577,13 @@ def show_release_notes():
     dialog.bind("<Destroy>", _on_destroy)
 
     notes = [
+        "Version 1.5:",
+        "- Added 'Legs' and 'Legs + shoulders' strength test options",
+        "- Improved bullet point spacing for better readability",
+        "- Updated screenshot coordinates for static and gait/running analysis",
+        "- Fixed layout so the leg axis & posture section fits on one page",
+        "- Renamed report file to 'YYYY-MM-DD Motionlab Report <name>' format",
+        "",
         "Version 1.4:",
         "- Added selection for different strength test types",
         "- Renamed report file from 'ml' to 'motionlab report'",
@@ -4633,7 +4661,7 @@ title_label.pack()
 # Subtitle/Version
 version_label = tk.Label(
     header_frame,
-    text="Version 1.4",
+    text="Version 1.5",
     font=("Helvetica", 10),
     fg=COLOR_BROWN,
     bg=COLOR_BG
