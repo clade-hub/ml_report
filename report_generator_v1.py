@@ -1427,6 +1427,7 @@ Ausdrücklich ist darauf hinzuweisen, dass die Bewegungsanalyse für eine schlü
         if statik_screenshots and len(statik_screenshots) >= 7:
             # Page break before new section
             doc.text.addElement(P(text="Statische Beinachsen- und Haltungsanalyse", stylename="HeadingPageBreakStyle"))
+            doc.text.addElement(P(text=""))
 
             # Add bullet points from user input
             if beinachsen_texts and len(beinachsen_texts) > 0:
